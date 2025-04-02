@@ -191,8 +191,11 @@ def format_response_result(
         try:
             if not isinstance(content, str):
                 content = content.decode('utf-8')
+        except UnicodeDecodeError as e:
+            err_message = f"response content type is \"{content_type}\", but not utf-8 encoded'"
+            raise ResponseError(response, err_message) from e
         except Exception as e:
-            err_message = f"response content type is \"{content_type}\", cannot be converted to a string"
+            err_message = f"response content type is \"{content_type}\", but cannot be converted to a string"
             raise ResponseError(response, err_message) from e
     else:
         err_message = f'response content type is "{content_type}", cannot be converted to a string'

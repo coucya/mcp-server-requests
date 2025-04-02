@@ -2,10 +2,29 @@ from typing import Dict, Any, Optional, Literal
 
 import click
 from mcp.server.fastmcp import FastMCP
+import urllib
 
 from .version import __version__
 from .request import mcp_http_request
 from .ua import list_ua_browsers, list_ua_oses, random_ua
+
+
+def get_user_agent(
+    *,
+    ua: str | None = None,
+    ua_random: bool = False,
+    ua_os: str | None = None,
+    ua_browser: str | None = None,
+) -> str:
+    if not ua and ua_random:
+        ua = random_ua(browser=ua_browser, os=ua_os)
+        if not ua:
+            raise RuntimeError(f"can't find suitable user-agent, os or browser: {ua_os}, {ua_browser}, try a different combination.")
+
+    if not ua:
+        ua = f"Mozilla/5.0 (compatible; mcp-server-requests/{__version__})"
+
+    return ua
 
 
 def create_mcp_server(
@@ -19,13 +38,7 @@ def create_mcp_server(
 
     mcp = FastMCP("Requests", description="HTTP 请求服务，用于获取 web 内容。", log_level="ERROR")
 
-    if not ua and ua_random:
-        ua = random_ua(browser=ua_browser, os=ua_os)
-        if not ua:
-            raise RuntimeError(f"can't find suitable user-agent, os or browser: {ua_os}, {ua_browser}, try a different combination.")
-
-    if not ua:
-        ua = f"Mozilla/5.0 (compatible; mcp-server-requests/{__version__})"
+    ua = get_user_agent(ua=ua, ua_random=ua_random, ua_os=ua_os, ua_browser=ua_browser)
 
     @mcp.tool()
     def fatch(url: str, *, return_content: Literal["full", "content", "markdown"] = "markdown") -> str:
@@ -167,14 +180,26 @@ def create_mcp_server(
     return mcp
 
 
-@click.command()
+@click.group(invoke_without_command=True)
+@click.pass_context
 @click.option('--ua', help='Specify user agent string directly')
 @click.option("--random-ua", is_flag=True, help="Use a random user agent, use --ua-os and --ua-browser for filtering")
 @click.option('--ua-os', help='Filter user agent by operating system (e.g. Windows, Linux)')
 @click.option('--ua-browser', help='Filter user agent by browser type (e.g. Chrome, Edge, Firefox, Opera)')
 @click.option("--ua-force", is_flag=True, help="Force the use of specified or randomly generated UA, ignoring UA provided by the model")
 @click.option('--list-ua', is_flag=True, help='List available browsers and operating systems for UA selection')
-def main(ua: Optional[str], random_ua: Optional[bool], ua_os: Optional[str], ua_browser: Optional[str], ua_force: Optional[bool], list_ua: bool):
+def main(
+    context: click.Context,
+    ua: Optional[str],
+    random_ua: Optional[bool],
+    ua_os: Optional[str],
+    ua_browser: Optional[str],
+    ua_force: Optional[bool],
+    list_ua: bool
+):
+    if list_ua and context.invoked_subcommand:
+        raise ValueError("Cannot use --list-ua with a subcommand.")
+
     if list_ua:
         click.echo("Available browsers:")
         for b in sorted(list_ua_browsers()):
@@ -184,14 +209,23 @@ def main(ua: Optional[str], random_ua: Optional[bool], ua_os: Optional[str], ua_
             click.echo(f"- {o}")
         return
 
-    mcp = create_mcp_server(
-        ua=ua,
-        ua_random=random_ua,
-        ua_os=ua_os,
-        ua_browser=ua_browser,
-        ua_force=ua_force,
-    )
-    mcp.run()
+    if context.invoked_subcommand:
+        pass
+    else:
+        mcp = create_mcp_server(
+            ua=ua,
+            ua_random=random_ua,
+            ua_os=ua_os,
+            ua_browser=ua_browser,
+            ua_force=ua_force,
+        )
+        mcp.run()
+
+
+@main.command()
+@click.argument("query", type=str, required=True)
+def search(query):
+    raise NotImplementedError("Search functionality is not implemented yet")
 
 
 if __name__ == "__main__":
