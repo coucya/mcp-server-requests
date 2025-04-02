@@ -1,6 +1,6 @@
 [project]
 name = "mcp-server-requests"
-version = "0.1.0"
+version = "0.2.0"
 description = "web requests MCP (Model Context Protocol) server."
 authors = [{ name = "coucya" }]
 license = { text = "MIT" }
@@ -16,7 +16,10 @@ dependencies = [
 requires = ["setuptools"]
 
 [tool.setuptools]
-packages = ["mcp_server_requests"]
+packages = ["mcp_server_requests", "mcp_server_requests.ua"]
+
+[tool.setuptools.package-data]
+"mcp_server_requests.ua" = ["ua.jsonl"]
 
 [project.scripts]
 mcp-server-requests = "mcp_server_requests.__main__:main"
