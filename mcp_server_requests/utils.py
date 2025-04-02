@@ -102,6 +102,14 @@ except ImportError:
         return simple_html_to_markdown(html)
 
 
+def parse(s: str) -> dict[str, str]:
+    s = s.strip()
+    if len(s) == 0:
+        return {}
+    # key1=val1;key2val2... -> dict
+    return dict((k.strip(), v) for k, v in (item.split("=", 1) for item in s.split(";")) if k.strip())
+
+
 if __name__ == "__main__":
     html1 = """
     <div>
