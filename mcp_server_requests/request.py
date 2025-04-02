@@ -1,6 +1,5 @@
 from dataclasses import dataclass
-from typing import Any, Optional, Literal, Union
-import random
+from typing import Optional, Literal, Union
 import json
 
 import urllib
@@ -8,6 +7,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 import http.client
+from urllib.parse import parse_qsl, urlparse, urlencode, urlunparse
 
 from .utils import html_to_markdown, remove_tag
 
@@ -57,9 +57,6 @@ class ResponseError(McpError):
     def __init__(self, response: Response, message: str, reason: str | None = None, *args):
         super().__init__(message, reason, response, *args)
         self.response = response
-
-
-from urllib.parse import parse_qsl, urlparse, parse_qs, urlencode, urlunparse
 
 
 def merge_query_to_url(url: str, query_dict: dict[str, str | int | float]) -> str:

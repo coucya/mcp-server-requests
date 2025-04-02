@@ -2,6 +2,7 @@
 /.roo
 /.knowledgebase
 /.rooignore
+/.vscode
 /doc
 /build
 /mcp_server_requests.egg-info

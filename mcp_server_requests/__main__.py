@@ -2,7 +2,6 @@ from typing import Dict, Any, Optional, Literal
 
 import click
 from mcp.server.fastmcp import FastMCP
-import urllib
 
 from .version import __version__
 from .request import mcp_http_request
