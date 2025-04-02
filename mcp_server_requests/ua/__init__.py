@@ -106,6 +106,14 @@ def random_ua(*, browser: Optional[str] = None, os: Optional[str] = None) -> str
     return item["useragent"]
 
 
+def list_ua_oses() -> list[str]:
+    return loader.oses()
+
+
+def list_ua_browsers() -> list[str]:
+    return loader.browsers()
+
+
 @click.command()
 @click.option('--browser', "-b", help='Filter by browser type (e.g. Chrome, Edge, Firefox, Opera)')
 @click.option('--os', help='Filter by operating system (e.g. Windows, Linux)')
@@ -114,11 +122,11 @@ def cli(browser: Optional[str], os: Optional[str], list: bool):
     if list:
         click.echo(f"User agents count: {len(loader)}")
         click.echo("Available browsers:")
-        for b in sorted(loader.browsers()):
-            click.echo(f"  - {b}")
+        for b in sorted(list_ua_browsers()):
+            click.echo(f"- {b}")
         click.echo("Available operating systems:")
-        for o in sorted(loader.oses()):
-            click.echo(f"  - {o}")
+        for o in sorted(list_ua_oses()):
+            click.echo(f"- {o}")
         return
 
     try:

@@ -1,15 +1,31 @@
 from typing import Dict, Any, Optional, Literal
 
+import click
 from mcp.server.fastmcp import FastMCP
 
+from .version import __version__
 from .request import mcp_http_request
+from .ua import list_ua_browsers, list_ua_oses, random_ua
 
 
 def create_mcp_server(
-    
+    *,
+    ua: str | None = None,
+    ua_random: bool = False,
+    ua_os: str | None = None,
+    ua_browser: str | None = None,
+    ua_force: bool | None = None,
 ) -> FastMCP:
 
     mcp = FastMCP("Requests", description="HTTP 请求服务，用于获取 web 内容。", log_level="ERROR")
+
+    if not ua and ua_random:
+        ua = random_ua(browser=ua_browser, os=ua_os)
+        if not ua:
+            raise RuntimeError(f"can't find suitable user-agent, os or browser: {ua_os}, {ua_browser}, try a different combination.")
+
+    if not ua:
+        ua = f"Mozilla/5.0 (compatible; mcp-server-requests/{__version__})"
 
     @mcp.tool()
     def fatch(url: str, *, return_content: Literal["full", "content", "markdown"] = "markdown") -> str:
@@ -30,7 +46,7 @@ def create_mcp_server(
             - 如果参数 return_content 为 content，返回过滤后的 HTML 内容，过滤掉所有不会显示的标签，如 script, style 等。
             - 如果参数 return_content 为 markdown，HTML 转换为 Markdown 后返回。
         """
-        return mcp_http_request("GET", url, return_content=return_content, format_headers=False)
+        return mcp_http_request("GET", url, return_content=return_content, user_agent=ua, force_user_agnet=ua_force, format_headers=False)
 
     @mcp.tool()
     def http_get(
@@ -50,7 +66,7 @@ def create_mcp_server(
         Returns:
             str: 标准HTTP响应格式的字符串，包含状态行、响应头和响应体。
         """
-        return mcp_http_request("GET", url, query=query, headers=headers)
+        return mcp_http_request("GET", url, query=query, headers=headers, user_agent=ua, force_user_agnet=ua_force)
 
     @mcp.tool()
     def http_post(
@@ -74,7 +90,7 @@ def create_mcp_server(
         Returns:
             str: 标准HTTP响应格式的字符串，包含状态行、响应头和响应体。
         """
-        return mcp_http_request("POST", url, query=query, data=data, json=json, headers=headers)
+        return mcp_http_request("POST", url, query=query, data=data, json=json, headers=headers, user_agent=ua, force_user_agnet=ua_force)
 
     @mcp.tool()
     def http_put(
@@ -98,7 +114,7 @@ def create_mcp_server(
         Returns:
             str: 标准HTTP响应格式的字符串，包含状态行、响应头和响应体。
         """
-        return mcp_http_request("PUT", url, query=query, data=data, json=json, headers=headers)
+        return mcp_http_request("PUT", url, query=query, data=data, json=json, headers=headers, user_agent=ua, force_user_agnet=ua_force)
 
     @mcp.tool()
     def http_patch(
@@ -122,7 +138,7 @@ def create_mcp_server(
         Returns:
             str: 标准HTTP响应格式的字符串，包含状态行、响应头和响应体。
         """
-        return mcp_http_request("PATCH", url, query=query, data=data, json=json, headers=headers)
+        return mcp_http_request("PATCH", url, query=query, data=data, json=json, headers=headers, user_agent=ua, force_user_agnet=ua_force)
 
     @mcp.tool()
     def http_delete(
@@ -146,13 +162,35 @@ def create_mcp_server(
         Returns:
             str: 标准HTTP响应格式的字符串，包含状态行、响应头和响应体。
         """
-        return mcp_http_request("DELETE", url, query=query, data=data, json=json, headers=headers)
+        return mcp_http_request("DELETE", url, query=query, data=data, json=json, headers=headers, user_agent=ua, force_user_agnet=ua_force)
 
     return mcp
 
 
-def main():
-    mcp = create_mcp_server()
+@click.command()
+@click.option('--ua', help='Specify user agent string directly')
+@click.option("--random-ua", is_flag=True, help="Use a random user agent, use --ua-os and --ua-browser for filtering")
+@click.option('--ua-os', help='Filter user agent by operating system (e.g. Windows, Linux)')
+@click.option('--ua-browser', help='Filter user agent by browser type (e.g. Chrome, Edge, Firefox, Opera)')
+@click.option("--ua-force", is_flag=True, help="Force the use of specified or randomly generated UA, ignoring UA provided by the model")
+@click.option('--list-ua', is_flag=True, help='List available browsers and operating systems for UA selection')
+def main(ua: Optional[str], random_ua: Optional[bool], ua_os: Optional[str], ua_browser: Optional[str], ua_force: Optional[bool], list_ua: bool):
+    if list_ua:
+        click.echo("Available browsers:")
+        for b in sorted(list_ua_browsers()):
+            click.echo(f"- {b}")
+        click.echo("Available operating systems:")
+        for o in sorted(list_ua_oses()):
+            click.echo(f"- {o}")
+        return
+
+    mcp = create_mcp_server(
+        ua=ua,
+        ua_random=random_ua,
+        ua_os=ua_os,
+        ua_browser=ua_browser,
+        ua_force=ua_force,
+    )
     mcp.run()
 
 

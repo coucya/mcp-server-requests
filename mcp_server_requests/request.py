@@ -12,12 +12,6 @@ import http.client
 from .utils import html_to_markdown, remove_tag
 
 
-USER_AGENTS = [
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3",
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.1.2 Safari/605.1.15",
-    "Mozilla/5.0 (Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
-]
-
 HTTP_METHODS = ["GET", "POST", "PUT", "PATCH", "DELETE"]
 
 VERSION_MAP = {
@@ -258,13 +252,22 @@ def mcp_http_request(
     data: Optional[dict] = None,
     json: Optional[dict] = None,
     headers: Optional[dict] = None,
+    user_agent: Optional[str] = None,
+    force_user_agnet: Optional[bool] = None,
     format_headers: bool = True,
     return_content: Literal["full", "content", "markdown"] = "full",
 ) -> str:
-    user_agent = random.choice(USER_AGENTS)
-    hs = {'User-Agent': user_agent}
+    hs = {}
+
     if headers:
         hs.update(headers)
+
+    if force_user_agnet:
+        if user_agent:
+            hs["User-Agent"] = user_agent
+    else:
+        if "User-Agent" not in hs and user_agent:
+            hs["User-Agent"] = user_agent
 
     try:
         response = http_request(
