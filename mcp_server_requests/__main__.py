@@ -267,9 +267,10 @@ def put(url: str, headers: str, data: str | None):
 @main.command()
 @click.argument("url", type=str, required=True)
 @click.option("--headers", type=str, default="", help="custom headers")
-def delete(url: str, headers: str):
+@click.option("--data", type=str)
+def delete(url: str, headers: str, data: str | None):
     hs = parse(headers)
-    res = mcp_http_request("DELETE", url, headers=hs)
+    res = mcp_http_request("DELETE", url, headers=hs, data=data)
     click.echo(res)
 
 
