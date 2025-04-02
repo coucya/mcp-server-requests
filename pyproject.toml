@@ -1,0 +1,22 @@
+[project]
+name = "mcp-server-requests"
+version = "0.1.0"
+description = "web requests MCP (Model Context Protocol) server."
+authors = [{ name = "coucya" }]
+license = { text = "MIT" }
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "mcp",
+    "markdownify",
+    "beautifulsoup4"
+]
+
+[build-system]
+requires = ["setuptools"]
+
+[tool.setuptools]
+packages = ["mcp_server_requests"]
+
+[project.scripts]
+mcp-server-requests = "mcp_server_requests.__main__:main"
