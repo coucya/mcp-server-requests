@@ -1,6 +1,6 @@
 [project]
 name = "mcp-server-requests"
-version = "0.2.0"
+version = "0.2.1"
 description = "web requests MCP (Model Context Protocol) server."
 authors = [{ name = "coucya" }]
 license = { text = "MIT" }

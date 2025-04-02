@@ -66,7 +66,7 @@ pip install .
 
 ### 可用工具
 
-1. **fatch** - 获取网页内容
+1. **fetch** - 获取网页内容
    - 参数:
      - `url` (必填): 目标 URL
      - `return_content` (可选): 返回内容类型 ("full", "content", "markdown")
@@ -110,7 +110,7 @@ pip install .
 #### fetch - 获取网页内容
 
 ```bash
-python -m mcp_server_requests fatch <URL> [--return-content {full,content,markdown}]
+python -m mcp_server_requests fetch <URL> [--return-content {full,content,markdown}]
 ```
 
 选项:

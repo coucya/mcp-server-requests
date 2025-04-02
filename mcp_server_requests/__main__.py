@@ -41,7 +41,7 @@ def create_mcp_server(
     ua = get_user_agent(ua=ua, ua_random=ua_random, ua_os=ua_os, ua_browser=ua_browser)
 
     @mcp.tool()
-    def fatch(url: str, *, return_content: Literal["full", "content", "markdown"] = "markdown") -> str:
+    def fetch(url: str, *, return_content: Literal["full", "content", "markdown"] = "markdown") -> str:
         """获取网页内容。
         - 如果是 HTML, 则根据 returm 返回合适的内容，
         - 如果不是 HTML，但是是 Text 类型的内容，则直接返回其内容。
@@ -211,6 +211,8 @@ def main(
         pass
     else:
         ua_random = False
+        ua_os = None
+        ua_browser = None
         if isinstance(random_user_agent, str):
             limit = parse(random_user_agent)
             ua_random = True
@@ -230,7 +232,7 @@ def main(
 @main.command()
 @click.argument("url", type=str, required=True)
 @click.option("--return-content", type=click.Choice(["full", "content", "markdown"]), default="markdown", help="return content type")
-def fatch(url: str, return_content: str):
+def fetch(url: str, return_content: str):
     res = mcp_http_request("GET", url, format_headers=False, return_content=return_content)
     click.echo(res)
 
