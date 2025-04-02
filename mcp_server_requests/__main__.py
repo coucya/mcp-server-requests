@@ -5,7 +5,10 @@ from mcp.server.fastmcp import FastMCP
 from .request import mcp_http_request
 
 
-def create_mcp_server() -> FastMCP:
+def create_mcp_server(
+    
+) -> FastMCP:
+
     mcp = FastMCP("Requests", description="HTTP 请求服务，用于获取 web 内容。", log_level="ERROR")
 
     @mcp.tool()
