@@ -1,6 +1,6 @@
 **/__pycache__
-/doc
-/mcp_server_requests.egg-info
-/build
-/.knowledgebase
 /.roo
+/.knowledgebase
+/doc
+/build
+/mcp_server_requests.egg-info
