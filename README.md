@@ -44,14 +44,13 @@ pip install .
 
 ### Command Line
 
-- Command line can be used to demonstrate tool functionality
 - Command line implementation is not yet complete
 
 ---
 
 ### 0. **Start MCP Service**
 
-When no subcommand is used, starts the MCP service directly
+starts the MCP service directly
 
 ```bash
 python -m mcp_server_requests

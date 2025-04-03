@@ -39,14 +39,13 @@ pip install .
 
 ### 命令行
 
-- 命令行可以用于演示工具的使用效果。   
 - 命令行功能的实现尚不完整。   
 
 ---
 
 ### 0. **启动 MCP 服务**
 
-当未使用子命令时，直接启动 MCP 服务   
+直接启动 MCP 服务   
 
 ```bash
 python -m mcp_server_requests
