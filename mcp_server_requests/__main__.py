@@ -41,23 +41,25 @@ def create_mcp_server(
     ua = get_user_agent(ua=ua, ua_random=ua_random, ua_os=ua_os, ua_browser=ua_browser)
 
     @mcp.tool()
-    def fetch(url: str, *, return_content: Literal["full", "content", "markdown"] = "markdown") -> str:
+    def fetch(url: str, *, return_content: Literal['raw', 'basic_clean', 'strict_clean', 'markdown'] = "markdown") -> str:
         """获取网页内容。
         - 如果是 HTML, 则根据 returm 返回合适的内容，
-        - 如果不是 HTML，但是是 Text 类型的内容，则直接返回其内容。
+        - 如果不是 HTML，但是是 Text 或 Json 内容，则直接返回其内容。
         - 如果是其它类型的内容，则返回错误信息。
 
         Args:
             url (str): 要获取的网页 URL。
-            return_content ("full" | "content" | "markdown", optional): 默认为 "markdown"，用于控制返回 html 内容的方式，
-                - 如果为 full，返回完整 HTML 内容。
-                - 如果为 content，返回过滤后的 HTML 内容，过滤掉所有不会显示的标签，如 script, style 等。
+            return_content ("raw" | "basic_clean" | "strict_clean" | "markdown", optional): 默认为 "markdown"，用于控制返回 html 内容的方式，
+                - 如果为 raw，返回原始 HTML 内容。
+                - 如果为 basic_clean，返回过滤后的 HTML 内容，过滤掉所有不会显示的标签，如 script, style 等。
+                - 如果为 strict_clean，返回过滤后的 HTML 内容，过滤掉所有不会显示的标签，如 script, style 等，并且会删除大部分无用的 HTML 属性。
                 - 如果为 markdown，HTML 转换为 Markdown 后返回。
 
         Returns:
-            - 如果参数 return_content 为 full，返回完整 HTML 内容。
-            - 如果参数 return_content 为 content，返回过滤后的 HTML 内容，过滤掉所有不会显示的标签，如 script, style 等。
-            - 如果参数 return_content 为 markdown，HTML 转换为 Markdown 后返回。
+            - 如果 return_content 为 raw，返回原始 HTML 内容。
+            - 如果 return_content 为 basic_clean，返回过滤后的 HTML 内容，过滤掉所有不会显示的标签，如 script, style 等。
+            - 如果 return_content 为 strict_clean，返回过滤后的 HTML 内容，过滤掉所有不会显示的标签，如 script, style 等，并且会删除大部分无用的 HTML 属性。
+            - 如果 return_content 为 markdown，HTML 转换为 Markdown 后返回。
         """
         return mcp_http_request("GET", url, return_content=return_content, user_agent=ua, force_user_agnet=ua_force, format_headers=False)
 
@@ -231,7 +233,7 @@ def main(
 
 @main.command()
 @click.argument("url", type=str, required=True)
-@click.option("--return-content", type=click.Choice(["full", "content", "markdown"]), default="markdown", help="return content type")
+@click.option("--return-content", type=click.Choice(['raw', 'basic_clean', 'strict_clean', 'markdown']), default="markdown", help="return content type")
 def fetch(url: str, return_content: str):
     res = mcp_http_request("GET", url, format_headers=False, return_content=return_content)
     click.echo(res)

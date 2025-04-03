@@ -67,37 +67,38 @@ pip install .
 ### 可用工具
 
 1. **fetch** - 获取网页内容
-   - 参数:
-     - `url` (必填): 目标 URL
-     - `return_content` (可选): 返回内容类型 ("full", "content", "markdown")
-       - `"full"`: 返回整个 HTML 页面内容
-       - `"content"`: 过滤后的 HTML 内容（移除 script, style 等标签）
-       - `"markdown"`: 网页转换为 Markdown 后返回
+  - 参数:
+    - `url` (必填): 目标 URL
+    - `return_content` (可选): 返回内容类型 ('raw', 'basic_clean', 'strict_clean', 'markdown')
+      - `raw`，返回原始 HTML 内容。
+      - `basic_clean`，返回过滤后的 HTML 内容，过滤掉所有不会显示的标签，如 script, style 等。
+      - `strict_clean`，返回过滤后的 HTML 内容，过滤掉所有不会显示的标签，如 script, style 等，并且会删除大部分无用的 HTML 属性。
+      - `markdown`，HTML 转换为 Markdown 后返回。
 
 2. **http_get** - 执行 HTTP GET 请求
-   - 参数:
-     - `url` (必填): 目标 URL
-     - `query` (可选): 查询参数键值对
-     - `headers` (可选): 自定义请求头
-       - LLM 可能在 headers 里指定 User-Agent，是否采用由 `--force-user-agent` 控制，后续的工具同理
+  - 参数:
+    - `url` (必填): 目标 URL
+    - `query` (可选): 查询参数键值对
+    - `headers` (可选): 自定义请求头
+      - LLM 可能在 headers 里指定 User-Agent，是否采用由 `--force-user-agent` 控制，后续的工具同理
 
 3. **http_post** - 执行 HTTP POST 请求
-   - 参数:
-     - `url` (必填): 目标 URL
-     - `query` (可选): 查询参数键值对
-     - `headers` (可选): 自定义请求头
-     - `data` (可选): 请求体数据 (文本)
-     - `json` (可选): 请求体数据 (JSON)
-     - `data` 和 `json` 不能同时使用
+  - 参数:
+    - `url` (必填): 目标 URL
+    - `query` (可选): 查询参数键值对
+    - `headers` (可选): 自定义请求头
+    - `data` (可选): 请求体数据 (文本)
+    - `json` (可选): 请求体数据 (JSON)
+    - `data` 和 `json` 不能同时使用
 
 4. **http_put** - 执行 HTTP PUT 请求
-   - 参数: 同 http_post
+  - 参数: 同 http_post
 
 5. **http_patch** - 执行 HTTP PATCH 请求
-   - 参数: 同 http_post
+  - 参数: 同 http_post
 
 6. **http_delete** - 执行 HTTP DELETE 请求
-   - 参数: 同 http_post
+  - 参数: 同 http_post
 
 
 ## 其它
@@ -115,9 +116,10 @@ python -m mcp_server_requests fetch <URL> [--return-content {full,content,markdo
 
 选项:
 - `--return-content`: 返回内容类型 (默认: markdown)
-  - `full`: 完整 HTML 内容
-  - `content`: 过滤后的 HTML 内容（移除 script, style 等标签）
-  - `markdown`: 转换为 Markdown 格式
+  - `raw`，返回原始 HTML 内容。
+  - `basic_clean`，返回过滤后的 HTML 内容，过滤掉所有不会显示的标签，如 script, style 等。
+  - `strict_clean`，返回过滤后的 HTML 内容，过滤掉所有不会显示的标签，如 script, style 等，并且会删除大部分无用的 HTML 属性。
+  - `markdown`，HTML 转换为 Markdown 后返回。
 
 示例:
 ```

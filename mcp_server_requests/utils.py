@@ -2,15 +2,40 @@
 from typing import Iterable
 import re
 
-from bs4 import BeautifulSoup
+from bs4 import BeautifulSoup, PageElement
 
 
-def remove_tag(html: str, tags: Iterable[str] = ("script", "style", "meta", "link", "noscript")) -> str:
-    tags = set(tags)
+def clean_html(
+    html: str,
+    *,
+    allowed_attrs: Iterable[str] | False = True,
+    clean_tags: Iterable[str] = ("script", "style", "meta", "link", "noscript")
+) -> str:
+    clean_tags = set(clean_tags)
     soup = BeautifulSoup(html, "html.parser")
-    for tag in tags:
+    for tag in clean_tags:
         for element in soup.find_all(tag):
             element.decompose()
+
+    node: PageElement
+
+    if allowed_attrs == True:
+        pass
+    elif not allowed_attrs:
+        for node in soup.find_all():
+            node.attrs = {}
+    else:
+        allowed_attrs = {*allowed_attrs}
+
+        for node in soup.find_all():
+            attrs = node.attrs
+            rm_attrs = []
+            for attr in attrs.keys():
+                if attr not in allowed_attrs:
+                    rm_attrs.append(attr)
+            for rm_attr in rm_attrs:
+                attrs.pop(rm_attr)
+
     return str(soup)
 
 
@@ -113,11 +138,9 @@ def parse(s: str) -> dict[str, str]:
 if __name__ == "__main__":
     html1 = """
     <div>
-        <script>alert('test')</script>
-        <p>Content</p>
-        <style>.cls{color:red}</style>
-        <link>  </link>
-        <noscript>Content</noscript> 
+        <img src="image1.jpg" alt="Image 1">
+        <img src="image2.jpg" alt="Image 2">
+        <a href="page.html" src="link">Link</a>
     </div>
     """
 
@@ -125,11 +148,11 @@ if __name__ == "__main__":
 
     print("==================================================")
     print("==================================================")
-    print(remove_tag(html1))
+    print(clean_html(html1, allowed_attrs=("src",)))
     print("==================================================")
     print(html_to_markdown(html1))
     print("==================================================")
     print("==================================================")
-    print(remove_tag(html2))
+    print(clean_html(html2, allowed_attrs=False))
     print("==================================================")
     print(html_to_markdown(html2))

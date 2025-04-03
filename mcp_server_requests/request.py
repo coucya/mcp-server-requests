@@ -9,7 +9,7 @@ import urllib.request
 import http.client
 from urllib.parse import parse_qsl, urlparse, urlencode, urlunparse
 
-from .utils import html_to_markdown, remove_tag
+from .utils import html_to_markdown, clean_html
 
 
 HTTP_METHODS = ["GET", "POST", "PUT", "PATCH", "DELETE"]
@@ -171,7 +171,7 @@ def format_response_result(
     response: Response,
     *,
     format_headers: bool | None = None,
-    return_content: Literal["full", "content", "markdown"] = "full",
+    return_content: Literal["raw", "basic_clean", "strict_clean", "markdown"] = "raw",
 ) -> str:
     """将HTTP响应格式化为字符串"""
     http_version = response.version
@@ -199,10 +199,12 @@ def format_response_result(
         raise ResponseError(response, err_message)
 
     if content_type.startswith("text/html"):
-        if return_content == "full":
+        if return_content == "raw":
             pass
-        elif return_content == "content":
-            content = remove_tag(content)
+        elif return_content == "basic_clean":
+            content = clean_html(content, allowed_attrs=True)
+        elif return_content == "strict_clean":
+            content = clean_html(content, allowed_attrs=("id", "src", "href"))
         elif return_content == "markdown":
             content = html_to_markdown(content)
 
@@ -255,7 +257,7 @@ def mcp_http_request(
     user_agent: Optional[str] = None,
     force_user_agnet: Optional[bool] = None,
     format_headers: bool = True,
-    return_content: Literal["full", "content", "markdown"] = "full",
+    return_content: Literal['raw', 'basic_clean', 'strict_clean', 'markdown'] = "raw",
 ) -> str:
     hs = {}
 
