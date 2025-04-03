@@ -1,17 +1,22 @@
+
+[中文](README-zh.md)
+
+---
+
 # mcp-server-requests
 
-用于 HTTP 请求的 MCP 服务，可以令 LLM 拥有读取网页的能力。   
+MCP service for HTTP requests, enabling LLMs to read web content.
 
-特性：
-- 支持网页转换为 Markdown
-- 过滤网页无用内容（对于 LLM 来说）
-- 支持自定义 User-Agent
-- 支持随机 User-Agent
-- 支持在 HTTP 请求时设置请求头
-- 支持多种 HTTP 请求方法（GET, POST, PUT, DELETE, PATCH）
-- LLM 可以读取响应头
+Features:
+- Supports converting web pages to Markdown
+- Filters out irrelevant content (for LLMs)
+- Supports custom User-Agent
+- Supports random User-Agent
+- Supports setting request headers in HTTP requests
+- Supports multiple HTTP methods (GET, POST, PUT, DELETE, PATCH)
+- LLMs can read response headers
 
-## 安装
+## Installation
 
 ```bash
 git clone github.com/coucya/mcp-server-requests.git
@@ -19,11 +24,11 @@ cd mcp-server-requests
 pip install .
 ```
 
-## 使用
+## Usage
 
 ### mcp server
 
-``` json
+```json
 {
     "mcpServers": {
         "mcp-server-requests": {
@@ -31,164 +36,158 @@ pip install .
             "args": [
                 "-m",
                 "mcp_server_requests"
-            ],
+            ]
         }
     }
 }
 ```
 
-### 命令行
+### Command Line
 
-- 命令行可以用于演示工具的使用效果。   
-- 命令行功能的实现尚不完整。   
+- Command line can be used to demonstrate tool functionality
+- Command line implementation is not yet complete
 
 ---
 
-### 0. **启动 MCP 服务**
+### 0. **Start MCP Service**
 
-当未使用子命令时，直接启动 MCP 服务   
+When no subcommand is used, starts the MCP service directly
 
 ```bash
 python -m mcp_server_requests
 ```
 
-选项：
-- `--user-agent TEXT`: 指定自定义 **User-Agent**
-- `--random-user-agent [browser=xxx;os=xxx]`: 使用随机 **User-Agent**
-- `--force-user-agent`: 强制使用指定或随机生成的 UA，忽略模型提供的 UA
-- `--list-os-and-browser`: 列出可用的浏览器和操作系统用于 UA 选择
+Options:
+- `--user-agent TEXT`: Specify custom **User-Agent**
+- `--random-user-agent [browser=xxx;os=xxx]`: Use random **User-Agent**
+- `--force-user-agent`: Force using specified or randomly generated UA, ignoring UA provided by model
+- `--list-os-and-browser`: List available browsers and operating systems for UA selection
 
-选项说明：
-- `--user-agent` 和 `--random-user-agent` 不能同时使用。   
-- 可以用以下方式设置 User-Agent:
-  - 自定义 User-Agent (`--user-agent "Mozilla/5.0 (...)"`)
-  - 随机生成 (`--random-user-agent`)
-  - 指定浏览器和操作系统
-    - 随机生成 chrome 的 **User-Agent** (`--random-user-agent browser=chrome`)
-    - 随机生成 windows 的 **User-Agent** (`--random-user-agent os=windows`)
-    - 随机生成 chrome 和 windows 的 **User-Agent** (`--random-user-agent browser=chrome;os=windows`)
-    - `--random-user-agent` 在指定 os 和 browser 时不区分大小写
+Option notes:
+- `--user-agent` and `--random-user-agent` cannot be used together
+- User-Agent can be set in following ways:
+  - Custom User-Agent (`--user-agent "Mozilla/5.0 (...)"`)
+  - Random generation (`--random-user-agent`)
+  - Specify browser and OS
+    - Random chrome **User-Agent** (`--random-user-agent browser=chrome`)
+    - Random windows **User-Agent** (`--random-user-agent os=windows`)
+    - Random chrome + windows **User-Agent** (`--random-user-agent browser=chrome;os=windows`)
+    - `--random-user-agent` is case-insensitive when specifying os and browser
 
-- 使用 `--list-os-and-browser` 查看可用于 `--random-user-agent` 的浏览器和操作系统列表。
+- Use `--list-os-and-browser` to see available browsers and OS for `--random-user-agent`
 
-- `--force-user-agent` 用于控制是否使用 LLM 调用工具时在 **header** 参数里指定的 **User-Agent**，如下：
-  - 当使用 `--force-user-agent`，且 LLM 调用工具时在 **header** 参数里指定了 **User-Agent**，
-    LLM 指定的 **User-Agent** 将被忽略，替换为命令行参数指定的（`--user-agent`、`--random-user-agnet` 或默认的）
-  - 当未使用 `--force-user-agent`，且 LLM 调用工具时在 **header** 参数里指定了 **User-Agent**，
-    使用 LLM 指定的 **User-Agent**
-  - 否则，使用命令行参数指定的（`--user-agent`、`--random-user-agnet` 或默认的）
-
-
+- `--force-user-agent` controls whether to use User-Agent specified in **header** parameter when LLM calls tools:
+  - When using `--force-user-agent` and LLM specifies User-Agent in **header**, 
+    the LLM-specified User-Agent will be ignored, replaced by command line specified one (`--user-agent`, `--random-user-agent` or default)
+  - When not using `--force-user-agent` and LLM specifies User-Agent in **header**,
+    use LLM-specified User-Agent
+  - Otherwise, use command line specified one (`--user-agent`, `--random-user-agent` or default)
 
 ---
 
-#### 1. **fetch - 获取网页内容**
-fetch 子命令与 fetch 工具的功能等价，可以演示 fetch 的功能。
+#### 1. **fetch - Fetch web content**
+fetch subcommand has same functionality as fetch tool, can demonstrate fetch features.
 
 ```bash
-python -m mcp_server_requests fetch <URL> [--return-content {full,content,markdown}]
+python -m mcp_server_requests fetch <URL> [--return-content {raw,basic_clean,strict_clean,markdown}]
 ```
 
-选项:
-- `--return-content`: 返回内容类型 (默认: markdown)
-  - **raw**，返回原始 HTML 内容。
-  - **basic_clean**，返回过滤后的 HTML 内容，过滤掉所有不会显示的标签，如 script, style 等。
-  - **strict_clean**，返回过滤后的 HTML 内容，过滤掉所有不会显示的标签，如 script, style 等，并且会删除大部分无用的 HTML 属性。
-  - **markdown**，HTML 转换为 Markdown 后返回。
+Options:
+- `--return-content`: Return content type (default: markdown)
+  - **raw**, returns raw HTML content
+  - **basic_clean**, returns filtered HTML content, removing non-display tags like script, style etc.
+  - **strict_clean**, returns filtered HTML content, removing non-display tags and most useless HTML attributes
+  - **markdown**, converts HTML to Markdown then returns
 
-示例:
+Example:
 ```
 python -m mcp_server_requests fetch https://example.com
 ```
 
 ---
 
-#### 2. **get - 执行 HTTP GET 请求**
-get 子命令与 http_get 工具的功能等价，可以演示 http_get 的功能。
+#### 2. **get - Execute HTTP GET request**
+get subcommand has same functionality as http_get tool, can demonstrate http_get features.
 
 ```bash
 python -m mcp_server_requests get <URL> [--headers HEADERS]
 ```
 
-选项:
-- `--headers`: 自定义请求头 (格式: "key1=value1;key2=value2")
+Options:
+- `--headers`: Custom headers (format: "key1=value1;key2=value2")
 
 ---
 
-#### 3. **post - 执行 HTTP POST 请求**
-post 子命令与 http_get 工具的功能等价，可以演示 http_get 的功能。
+#### 3. **post - Execute HTTP POST request**
+post subcommand has same functionality as http_post tool, can demonstrate http_post features.
 
 ```bash
 python -m mcp_server_requests post <URL> [--headers HEADERS] [--data TEXT]
 ```
 
-选项:
-- `--headers`: 自定义请求头
-- `--data`: 请求体数据
+Options:
+- `--headers`: Custom headers
+- `--data`: Request body data
 
 ---
 
-#### 4. **put - 执行 HTTP PUT 请求**
-put 子命令与 http_put 工具的功能等价，可以演示 http_put 的功能。
+#### 4. **put - Execute HTTP PUT request**
+put subcommand has same functionality as http_put tool, can demonstrate http_put features.
 
 ```bash
 python -m mcp_server_requests put <URL> [--headers HEADERS] [--data TEXT]
 ```
 
-选项: 同 POST
+Options: Same as POST
 
 ---
 
-#### 5. **delete - 执行 HTTP DELETE 请求**
-delete 子命令与 http_delete 工具的功能等价，可以演示 http_delete 的功能。
+#### 5. **delete - Execute HTTP DELETE request**
+delete subcommand has same functionality as http_delete tool, can demonstrate http_delete features.
 
 ```bash
 python -m mcp_server_requests delete <URL> [--headers HEADERS] [--data TEXT]
 ```
 
-选项: 同 POST
+Options: Same as POST
 
+## Features
 
+### Available Tools
 
+1. **fetch** - Fetch web content
+  - Parameters:
+    - **url** (required): Target URL
+    - **return_content** (optional): Return content type ('raw', 'basic_clean', 'strict_clean', 'markdown')
+      - **raw**, returns raw HTML content
+      - **basic_clean**, returns filtered HTML content, removing non-display tags like script, style etc.
+      - **strict_clean**, returns filtered HTML content, removing non-display tags and most useless HTML attributes
+      - **markdown**, converts HTML to Markdown then returns
 
-## 功能
+2. **http_get** - Execute HTTP GET request
+  - Parameters:
+    - **url** (required): Target URL
+    - **query** (optional): Query parameter key-value pairs
+    - **headers** (optional): Custom headers
+      - LLM may specify User-Agent in headers, whether to use it is controlled by `--force-user-agent` (same for other tools)
 
-### 可用工具
+3. **http_post** - Execute HTTP POST request
+  - Parameters:
+    - **url** (required): Target URL
+    - **query** (optional): Query parameter key-value pairs
+    - **headers** (optional): Custom headers
+    - **data** (optional): Request body data (text)
+    - **json** (optional): Request body data (JSON)
+    - **data** and **json** cannot be used together
 
-1. **fetch** - 获取网页内容
-  - 参数:
-    - **url** (必填): 目标 URL
-    - **return_content** (可选): 返回内容类型 ('raw', 'basic_clean', 'strict_clean', 'markdown')
-      - **raw**，返回原始 HTML 内容。
-      - **basic_clean**，返回过滤后的 HTML 内容，过滤掉所有不会显示的标签，如 script, style 等。
-      - **strict_clean**，返回过滤后的 HTML 内容，过滤掉所有不会显示的标签，如 script, style 等，并且会删除大部分无用的 HTML 属性。
-      - **markdown**，HTML 转换为 Markdown 后返回。
+4. **http_put** - Execute HTTP PUT request
+  - Parameters: Same as http_post
 
-2. **http_get** - 执行 HTTP GET 请求
-  - 参数:
-    - **url** (必填): 目标 URL
-    - **query** (可选): 查询参数键值对
-    - **headers** (可选): 自定义请求头
-      - LLM 可能在 headers 里指定 User-Agent，是否采用由 `--force-user-agent` 控制，后续的工具同理
+5. **http_patch** - Execute HTTP PATCH request
+  - Parameters: Same as http_post
 
-3. **http_post** - 执行 HTTP POST 请求
-  - 参数:
-    - **url** (必填): 目标 URL
-    - **query** (可选): 查询参数键值对
-    - **headers** (可选): 自定义请求头
-    - **data** (可选): 请求体数据 (文本)
-    - **json** (可选): 请求体数据 (JSON)
-    - **data** 和 **json** 不能同时使用
-
-4. **http_put** - 执行 HTTP PUT 请求
-  - 参数: 同 http_post
-
-5. **http_patch** - 执行 HTTP PATCH 请求
-  - 参数: 同 http_post
-
-6. **http_delete** - 执行 HTTP DELETE 请求
-  - 参数: 同 http_post
-
+6. **http_delete** - Execute HTTP DELETE request
+  - Parameters: Same as http_post
 
 ## License
 MIT
