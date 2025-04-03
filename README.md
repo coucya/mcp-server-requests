@@ -1,3 +1,7 @@
+[中文](README-zh.md)
+
+-----
+
 # mcp-server-requests
 
 An MCP server that provides HTTP request capabilities, enabling LLMs to fetch and process web content.
