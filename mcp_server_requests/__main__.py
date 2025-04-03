@@ -278,7 +278,7 @@ def delete(url: str, headers: str, data: str | None):
     click.echo(res)
 
 
-@main.command()
+@main.command(help="not implemented yet")
 @click.argument("query", type=str, required=True)
 def search(query):
     raise NotImplementedError("Search functionality is not implemented yet")

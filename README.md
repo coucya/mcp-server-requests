@@ -39,13 +39,51 @@ pip install .
 
 ### 命令行
 
-- 命令行仅用于测试，与 MCP 无关，在配置 MCP 的过程中无需考虑。   
 - 命令行可以用于演示工具的使用效果。   
 - 命令行功能的实现尚不完整。   
 
 ---
 
+### 0. **启动 MCP 服务**
+
+当未使用子命令时，直接启动 MCP 服务   
+
+```bash
+python -m mcp_server_requests
+```
+
+选项：
+- `--user-agent TEXT`: 指定自定义 **User-Agent**
+- `--random-user-agent [browser=xxx;os=xxx]`: 使用随机 **User-Agent**
+- `--force-user-agent`: 强制使用指定或随机生成的 UA，忽略模型提供的 UA
+- `--list-os-and-browser`: 列出可用的浏览器和操作系统用于 UA 选择
+
+选项说明：
+- `--user-agent` 和 `--random-user-agent` 不能同时使用。   
+- 可以用以下方式设置 User-Agent:
+  - 自定义 User-Agent (`--user-agent "Mozilla/5.0 (...)"`)
+  - 随机生成 (`--random-user-agent`)
+  - 指定浏览器和操作系统
+    - 随机生成 chrome 的 **User-Agent** (`--random-user-agent browser=chrome`)
+    - 随机生成 windows 的 **User-Agent** (`--random-user-agent os=windows`)
+    - 随机生成 chrome 和 windows 的 **User-Agent** (`--random-user-agent browser=chrome;os=windows`)
+    - `--random-user-agent` 在指定 os 和 browser 时不区分大小写
+
+- 使用 `--list-os-and-browser` 查看可用于 `--random-user-agent` 的浏览器和操作系统列表。
+
+- `--force-user-agent` 用于控制是否使用 LLM 调用工具时在 **header** 参数里指定的 **User-Agent**，如下：
+  - 当使用 `--force-user-agent`，且 LLM 调用工具时在 **header** 参数里指定了 **User-Agent**，
+    LLM 指定的 **User-Agent** 将被忽略，替换为命令行参数指定的（`--user-agent`、`--random-user-agnet` 或默认的）
+  - 当未使用 `--force-user-agent`，且 LLM 调用工具时在 **header** 参数里指定了 **User-Agent**，
+    使用 LLM 指定的 **User-Agent**
+  - 否则，使用命令行参数指定的（`--user-agent`、`--random-user-agnet` 或默认的）
+
+
+
+---
+
 #### 1. **fetch - 获取网页内容**
+fetch 子命令与 fetch 工具的功能等价，可以演示 fetch 的功能。
 
 ```bash
 python -m mcp_server_requests fetch <URL> [--return-content {full,content,markdown}]
@@ -66,6 +104,7 @@ python -m mcp_server_requests fetch https://example.com
 ---
 
 #### 2. **get - 执行 HTTP GET 请求**
+get 子命令与 http_get 工具的功能等价，可以演示 http_get 的功能。
 
 ```bash
 python -m mcp_server_requests get <URL> [--headers HEADERS]
@@ -77,6 +116,7 @@ python -m mcp_server_requests get <URL> [--headers HEADERS]
 ---
 
 #### 3. **post - 执行 HTTP POST 请求**
+post 子命令与 http_get 工具的功能等价，可以演示 http_get 的功能。
 
 ```bash
 python -m mcp_server_requests post <URL> [--headers HEADERS] [--data TEXT]
@@ -89,6 +129,7 @@ python -m mcp_server_requests post <URL> [--headers HEADERS] [--data TEXT]
 ---
 
 #### 4. **put - 执行 HTTP PUT 请求**
+put 子命令与 http_put 工具的功能等价，可以演示 http_put 的功能。
 
 ```bash
 python -m mcp_server_requests put <URL> [--headers HEADERS] [--data TEXT]
@@ -99,6 +140,7 @@ python -m mcp_server_requests put <URL> [--headers HEADERS] [--data TEXT]
 ---
 
 #### 5. **delete - 执行 HTTP DELETE 请求**
+delete 子命令与 http_delete 工具的功能等价，可以演示 http_delete 的功能。
 
 ```bash
 python -m mcp_server_requests delete <URL> [--headers HEADERS] [--data TEXT]
@@ -108,32 +150,6 @@ python -m mcp_server_requests delete <URL> [--headers HEADERS] [--data TEXT]
 
 
 
-### 选项
-
-- `--user-agent TEXT`: 指定自定义 **User-Agent**
-- `--random-user-agent [browser=xxx;os=xxx]`: 使用随机 **User-Agent**
-- `--force-user-agent`: 强制使用指定或随机生成的 UA，忽略模型提供的 UA
-- `--list-os-and-browser`: 列出可用的浏览器和操作系统用于 UA 选择
-
-### 选项说明
-- `--user-agent` 和 `--random-user-agent` 不能同时使用。   
-- 可以用以下方式设置 User-Agent:
-  - 自定义 User-Agent (`--user-agent "Mozilla/5.0 (...)"`)
-  - 随机生成 (`--random-user-agent`)
-  - 指定浏览器和操作系统
-    - 随机生成 chrome 的 **User-Agent** (`--random-user-agent browser=chrome`)
-    - 随机生成 windows 的 **User-Agent** (`--random-user-agent os=windows`)
-    - 随机生成 chrome 和 windows 的 **User-Agent** (`--random-user-agent browser=chrome;os=windows`)
-    - `--random-user-agent` 在指定 os 和 browser 时不区分大小写
-
-- 使用 `--list-os-and-browser` 查看可用于 `--random-user-agent` 的浏览器和操作系统列表。
-
-- `--force-user-agent` 用于控制是否使用 LLM 调用工具时在 **header** 参数里指定的 **User-Agent**，如下：
-  - 当使用 `--force-user-agent`，且 LLM 调用工具时在 **header** 参数里指定了 **User-Agent**，
-    LLM 指定的 **User-Agent** 将被忽略，替换为命令行参数指定的（`--user-agent`、`--random-user-agnet` 或默认的）
-  - 当未使用 `--force-user-agent`，且 LLM 调用工具时在 **header** 参数里指定了 **User-Agent**，
-    使用 LLM 指定的 **User-Agent**
-  - 否则，使用命令行参数指定的（`--user-agent`、`--random-user-agnet` 或默认的）
 
 ## 功能
 
