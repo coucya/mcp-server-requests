@@ -1,4 +1,5 @@
 from typing import Dict, Any, Optional, Literal
+import os
 
 import click
 from mcp.server.fastmcp import FastMCP
@@ -62,6 +63,70 @@ def create_mcp_server(
             - 如果 return_content 为 markdown，HTML 转换为 Markdown 后返回。
         """
         return mcp_http_request("GET", url, return_content=return_content, user_agent=ua, force_user_agnet=ua_force, format_headers=False)
+
+    @mcp.tool()
+    def fetch_to_file(
+        url: str,
+        file_path: str,
+        *,
+        return_content: Literal['raw', 'basic_clean', 'strict_clean', 'markdown'] = "markdown"
+    ) -> str:
+        """获取网页内容并保存到文件。
+        - 如果是 HTML, 则根据 return_content 返回合适的内容，
+        - 如果不是 HTML，但是是 Text 或 Json 内容，则直接保存其内容。
+        - 如果是其它类型的内容，则返回错误信息。
+
+        Args:
+            url (str): 要获取的网页 URL。
+            file_path (str): 要保存到的文件路径，必须是绝对路径。
+            return_content ("raw" | "basic_clean" | "strict_clean" | "markdown", optional): 默认为 "markdown"，用于控制返回 html 内容的方式，
+                - 如果为 raw，返回原始 HTML 内容。
+                - 如果为 basic_clean，返回过滤后的 HTML 内容，过滤掉所有不会显示的标签，如 script, style 等。
+                - 如果为 strict_clean，返回过滤后的 HTML 内容，过滤掉所有不会显示的标签，如 script, style 等，并且会删除大部分无用的 HTML 属性。
+                - 如果为 markdown，HTML 转换为 Markdown 后返回。
+
+        Returns:
+            - 成功时返回文件保存路径
+            - 如果路径不安全则返回错误信息
+        """
+        # 根据操作系统设置受保护路径
+        protected_paths = []
+        if os.name == 'nt':  # Windows
+            protected_paths.extend([
+                os.path.join('C:', 'Windows'),
+                os.path.join('C:', 'Program Files'),
+                os.path.join('C:', 'Program Files (x86)'),
+            ])
+        else:  # Linux/Mac
+            protected_paths.extend([
+                '/etc',
+                '/usr',
+                '/bin',
+                '/sbin',
+                '/lib',
+                '/root',
+            ])
+
+        if not os.path.isabs(file_path):
+            return f"Error: Path must be absolute: {file_path}"
+
+        # 检查路径安全性
+        file_path = os.path.abspath(file_path)
+        for protected in protected_paths:
+            if file_path.startswith(protected):
+                return f"Error: Do not allow writing to protected paths: {protected}"
+
+        # 获取内容
+        content = mcp_http_request("GET", url, return_content=return_content,
+                                   user_agent=ua, force_user_agnet=ua_force,
+                                   format_headers=False)
+
+        # 写入文件
+        os.makedirs(os.path.dirname(file_path), exist_ok=True)
+        with open(file_path, 'w', encoding='utf-8') as f:
+            f.write(content)
+
+        return f"File written successfully to: {file_path}"
 
     @mcp.tool()
     def http_get(
