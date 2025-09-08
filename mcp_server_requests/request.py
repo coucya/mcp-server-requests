@@ -64,7 +64,7 @@ def merge_query_to_url(url: str, query_dict: dict[str, str | int | float]) -> st
 
     original_query = parse_qsl(parsed_url.query)
 
-    query_single = set(original_query)
+    query_single: set[tuple[str, str | int | float]] = set(original_query)
 
     for k, v in query_dict.items():
         if not isinstance(v, (str, int, float)):
@@ -186,8 +186,10 @@ def format_response_result(
 
     if content_type.startswith("text/") or content_type.startswith("application/json"):
         try:
-            if not isinstance(content, str):
+            if isinstance(content, (bytes, bytearray)):
                 content = content.decode('utf-8')
+            else:
+                content = str(content)
         except UnicodeDecodeError as e:
             err_message = f"response content type is \"{content_type}\", but not utf-8 encoded'"
             raise ResponseError(response, err_message) from e
@@ -251,7 +253,7 @@ def mcp_http_request(
     url: str,
     *,
     query: Optional[dict] = None,
-    data: Optional[dict] = None,
+    data: Optional[str | bytes | bytearray] = None,
     json: Optional[dict] = None,
     headers: Optional[dict] = None,
     user_agent: Optional[str] = None,

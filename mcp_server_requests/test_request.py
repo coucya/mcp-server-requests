@@ -121,7 +121,7 @@ class TestFormatFunctions(unittest.TestCase):
             headers=[('Content-Type', 'text/plain')],
             content=b"test content"
         )
-        result = format_response_result(response, format_headers=True, return_content="full")
+        result = format_response_result(response, format_headers=True, return_content="raw")
         self.assertIn("HTTP/1.1 200 OK", result)
         self.assertIn("Content-Type: text/plain", result)
         self.assertIn("test content", result)

@@ -1,14 +1,15 @@
 
-from typing import Iterable
+from typing import Iterable, Literal
 import re
 
-from bs4 import BeautifulSoup, PageElement
+from bs4 import BeautifulSoup
+from bs4.element import PageElement
 
 
 def clean_html(
     html: str,
     *,
-    allowed_attrs: Iterable[str] | False = True,
+    allowed_attrs: Iterable[str] | bool = True,
     clean_tags: Iterable[str] = ("script", "style", "meta", "link", "noscript")
 ) -> str:
     clean_tags = set(clean_tags)
@@ -23,7 +24,8 @@ def clean_html(
         pass
     elif not allowed_attrs:
         for node in soup.find_all():
-            node.attrs = {}
+            if isinstance(node, PageElement):
+                node.attrs.clear();
     else:
         allowed_attrs = {*allowed_attrs}
 

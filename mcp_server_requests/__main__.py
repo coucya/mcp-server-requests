@@ -37,7 +37,7 @@ def create_mcp_server(
     ua_force: bool | None = None,
 ) -> FastMCP:
 
-    mcp = FastMCP("Requests", description="HTTP 请求服务，用于获取 web 内容。", log_level="ERROR")
+    mcp = FastMCP("Requests", log_level="ERROR")
 
     ua = get_user_agent(ua=ua, ua_random=ua_random, ua_os=ua_os, ua_browser=ua_browser)
 
@@ -249,13 +249,13 @@ def create_mcp_server(
 
 @click.group(invoke_without_command=True)
 @click.pass_context
-@click.option("--user-agent", is_flag=True, flag_value=True, default=None, help='Specify user agent string directly')
+@click.option("--user-agent", default=None, help='Specify user agent string directly')
 @click.option("--random-user-agent", is_flag=True, flag_value=True, default=None, help="Use a random user agent,")
 @click.option("--force-user-agent", is_flag=True, help="Force the use of specified or randomly generated UA, ignoring UA provided by the model")
 @click.option('--list-os-and-browser', is_flag=True, help='List available browsers and operating systems for UA selection')
 def main(
     context: click.Context,
-    user_agent: Optional[str | bool],
+    user_agent: Optional[str],
     random_user_agent: Optional[str],
     force_user_agent: Optional[bool],
     list_os_and_browser: bool
@@ -299,7 +299,10 @@ def main(
 @main.command()
 @click.argument("url", type=str, required=True)
 @click.option("--return-content", type=click.Choice(['raw', 'basic_clean', 'strict_clean', 'markdown']), default="markdown", help="return content type")
-def fetch(url: str, return_content: str):
+def fetch(
+    url: str,
+    return_content: Literal['raw'] | Literal['basic_clean'] | Literal['strict_clean'] | Literal['markdown']
+):
     res = mcp_http_request("GET", url, format_headers=False, return_content=return_content)
     click.echo(res)
 
