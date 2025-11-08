@@ -6,6 +6,10 @@
 
 An MCP server that provides HTTP request capabilities, enabling LLMs to fetch and process web content.
 
+<a href="https://glama.ai/mcp/servers/@coucya/mcp-server-requests">
+  <img width="380" height="200" src="https://glama.ai/mcp/servers/@coucya/mcp-server-requests/badge" alt="mcp-server-requests MCP server" />
+</a>
+
 ## Features
 - Supports converting web content to Markdown format
 - Supports filtering out content useless for LLMs
