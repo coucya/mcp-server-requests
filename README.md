@@ -56,6 +56,8 @@ python -m mcp_server_requests
 - `--random-user-agent [browser=xxx;os=xxx]`: Use randomly generated User-Agent
 - `--force-user-agent`: Force using command line specified User-Agent, ignoring LLM provided UA
 - `--list-os-and-browser`: List available browsers and OS for random User-Agent generation
+- `--use-workspace-root`: Enable workspace root support for file operations
+- `--allow-outside-of-workspace`: Allow file operations outside workspace (only with --use-workspace-root)
 
 #### Option Details
 - `--user-agent` and `--random-user-agent` are mutually exclusive and cannot be used together
@@ -75,6 +77,11 @@ python -m mcp_server_requests
   - When disabled:
     - If LLM provides User-Agent, use that
     - Otherwise use command line specified User-Agent
+
+- `--use-workspace-root` enables file operations relative to workspace root:
+  - When enabled: File paths are relative to workspace root
+  - When disabled: File paths must be absolute paths
+  - `--allow-outside-of-workspace`: Controls whether files outside workspace are allowed (only usable with --use-workspace-root)
 
 ---
 
@@ -100,55 +107,6 @@ python -m mcp_server_requests fetch https://example.com
 
 ---
 
-### 2. **get - Execute HTTP GET Request**
-
-The get subcommand is equivalent to the http_get tool functionality, demonstrating http_get capabilities.
-
-```bash
-python -m mcp_server_requests get <URL> [--headers HEADERS]
-```
-
-Options:
-- `--headers`: Custom request headers (format: "key1=value1;key2=value2")
-
----
-
-### 3. **post - Execute HTTP POST Request**
-
-The post subcommand is equivalent to the http_post tool functionality, demonstrating http_post capabilities.
-
-```bash
-python -m mcp_server_requests post <URL> [--headers HEADERS] [--data TEXT]
-```
-
-Options:
-- `--headers`: Custom request headers
-- `--data`: Request body data
-
----
-
-### 4. **put - Execute HTTP PUT Request**
-
-The put subcommand is equivalent to the http_put tool functionality, demonstrating http_put capabilities.
-
-```bash
-python -m mcp_server_requests put <URL> [--headers HEADERS] [--data TEXT]
-```
-
-Options: Same as POST method
-
----
-
-### 5. **delete - Execute HTTP DELETE Request**
-
-The delete subcommand is equivalent to the http_delete tool functionality, demonstrating http_delete capabilities.
-
-```bash
-python -m mcp_server_requests delete <URL> [--headers HEADERS] [--data TEXT]
-```
-
-Options: Same as POST method
-
 ---
 
 ## Functionality
@@ -164,30 +122,34 @@ Options: Same as POST method
        - **strict_clean**: Return filtered HTML content, removing non-display tags and most useless HTML attributes
        - **markdown**: Return HTML converted to Markdown
 
-2. **http_get** - Execute HTTP GET request
+2. **fetch_to_file** - Fetch web content and save to file
    - Parameters:
      - **url** (required): Target URL
-     - **query** (optional): Query parameter key-value pairs
-     - **headers** (optional): Custom request headers
-       - LLM may specify User-Agent in headers, whether to use it is controlled by `--force-user-agent` (same applies to other tools)
+     - **file_path** (required): File path where content will be saved
+       - When `--use-workspace-root` is enabled: Relative path to workspace root
+       - When disabled: Absolute file path
+     - **return_content** (optional): Processing format (same as fetch tool)
+   - Features:
+     - Automatic directory creation for nested paths
+     - File path validation for security
+     - UTF-8 encoding for all saved files
 
-3. **http_post** - Execute HTTP POST request
+3. **http_request** - Execute HTTP request with any method
    - Parameters:
      - **url** (required): Target URL
+     - **method** (optional): HTTP method ('GET', 'POST', 'PUT', 'PATCH', 'DELETE')
      - **query** (optional): Query parameter key-value pairs
      - **headers** (optional): Custom request headers
      - **data** (optional): Request body data (text)
      - **json** (optional): Request body data (JSON)
-     - **data** and **json** cannot be used together
+       - **data** and **json** cannot be used together
+   - Features:
+     - Complete HTTP response including status, headers, and body
+     - Automatic URL encoding for query parameters
+     - Content-Type header auto-set for JSON data
+   - Note: LLM may specify User-Agent in headers, whether to use it is controlled by `--force-user-agent`
 
-4. **http_put** - Execute HTTP PUT request
-   - Parameters: Same as http_post
-
-5. **http_patch** - Execute HTTP PATCH request
-   - Parameters: Same as http_post
-
-6. **http_delete** - Execute HTTP DELETE request
-   - Parameters: Same as http_post
+**Note**: Individual HTTP method tools (http_get, http_post, http_put, http_patch, http_delete) have been removed and replaced by the unified **http_request** tool.
 
 ## License
 MIT

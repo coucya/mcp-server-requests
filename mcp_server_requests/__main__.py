@@ -68,43 +68,6 @@ def fetch(
     click.echo(res)
 
 
-@main.command()
-@click.argument("url", type=str, required=True)
-@click.option("--headers", type=str, default="", help="custom headers")
-def get(url: str, headers: str):
-    hs = parse(headers)
-    res = mcp_http_request("GET", url, headers=hs)
-    click.echo(res)
-
-
-@main.command()
-@click.argument("url", type=str, required=True)
-@click.option("--headers", type=str, default="", help="custom headers")
-@click.option("--data", type=str)
-def post(url: str, headers: str, data: str | None):
-    hs = parse(headers)
-    res = mcp_http_request("POST", url, headers=hs, data=data)
-    click.echo(res)
-
-
-@main.command()
-@click.argument("url", type=str, required=True)
-@click.option("--headers", type=str, default="", help="custom headers")
-@click.option("--data", type=str)
-def put(url: str, headers: str, data: str | None):
-    hs = parse(headers)
-    res = mcp_http_request("PUT", url, headers=hs, data=data)
-    click.echo(res)
-
-
-@main.command()
-@click.argument("url", type=str, required=True)
-@click.option("--headers", type=str, default="", help="custom headers")
-@click.option("--data", type=str)
-def delete(url: str, headers: str, data: str | None):
-    hs = parse(headers)
-    res = mcp_http_request("DELETE", url, headers=hs, data=data)
-    click.echo(res)
 
 
 @main.command(help="not implemented yet")

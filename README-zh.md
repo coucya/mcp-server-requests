@@ -52,6 +52,8 @@ python -m mcp_server_requests
 - `--random-user-agent [browser=xxx;os=xxx]`：使用随机生成的 User-Agent
 - `--force-user-agent`：强制使用命令行指定的 User-Agent，忽略 LLM 提供的 UA
 - `--list-os-and-browser`：列出可用于生成随机 User-Agent 的浏览器和操作系统
+- `--use-workspace-root`：启用工作区根目录支持的文件操作
+- `--allow-outside-of-workspace`：允许在工作区外进行文件操作（仅与 --use-workspace-root 一起使用）
 
 #### 选项说明
 - `--user-agent` 和 `--random-user-agent` 选项互斥，不能同时使用
@@ -71,6 +73,11 @@ python -m mcp_server_requests
   - 禁用时：
     - 如果 LLM 提供了 User-Agent，则使用 LLM 提供的
     - 否则使用命令行指定的 User-Agent
+
+- `--use-workspace-root` 启用相对于工作区根目录的文件操作：
+  - 启用时：文件路径相对于工作区根目录
+  - 禁用时：文件路径必须为绝对路径
+  - `--allow-outside-of-workspace`：控制是否允许在工作区外操作文件（仅能与 --use-workspace-root 一起使用）
 
 ---
 
@@ -96,55 +103,6 @@ python -m mcp_server_requests fetch https://example.com
 
 ---
 
-### 2. **get - 执行 HTTP GET 请求**
-
-get 子命令与 http_get 工具的功能等价，可以演示 http_get 的功能。
-
-```bash
-python -m mcp_server_requests get <URL> [--headers HEADERS]
-```
-
-选项：
-- `--headers`：自定义请求头（格式："key1=value1;key2=value2"）
-
----
-
-### 3. **post - 执行 HTTP POST 请求**
-
-post 子命令与 http_post 工具的功能等价，可以演示 http_post 的功能。
-
-```bash
-python -m mcp_server_requests post <URL> [--headers HEADERS] [--data TEXT]
-```
-
-选项：
-- `--headers`：自定义请求头
-- `--data`：请求体数据
-
----
-
-### 4. **put - 执行 HTTP PUT 请求**
-
-put 子命令与 http_put 工具的功能等价，可以演示 http_put 的功能。
-
-```bash
-python -m mcp_server_requests put <URL> [--headers HEADERS] [--data TEXT]
-```
-
-选项：与 POST 方法相同
-
----
-
-### 5. **delete - 执行 HTTP DELETE 请求**
-
-delete 子命令与 http_delete 工具的功能等价，可以演示 http_delete 的功能。
-
-```bash
-python -m mcp_server_requests delete <URL> [--headers HEADERS] [--data TEXT]
-```
-
-选项：与 POST 方法相同
-
 ---
 
 ## 功能
@@ -160,30 +118,34 @@ python -m mcp_server_requests delete <URL> [--headers HEADERS] [--data TEXT]
        - **strict_clean**：返回过滤后的 HTML 内容，过滤掉所有不会显示的标签，如 script、style 等，并且会删除大部分无用的 HTML 属性
        - **markdown**：HTML 转换为 Markdown 后返回
 
-2. **http_get** - 执行 HTTP GET 请求
+2. **fetch_to_file** - 获取网页内容并保存到文件
    - 参数：
      - **url**（必填）：目标 URL
-     - **query**（可选）：查询参数键值对
-     - **headers**（可选）：自定义请求头
-       - LLM 可能在 headers 里指定 User-Agent，是否采用由 `--force-user-agent` 控制，后续的工具同理
+     - **file_path**（必填）：保存内容的文件路径
+       - 当启用 `--use-workspace-root` 时：相对于工作区根目录的路径
+       - 禁用时：必须为绝对文件路径
+     - **return_content**（可选）：处理格式（与 fetch 工具相同）
+   - 功能特性：
+     - 自动为嵌套路径创建目录
+     - 文件路径安全验证
+     - 所有保存的文件使用 UTF-8 编码
 
-3. **http_post** - 执行 HTTP POST 请求
+3. **http_request** - 使用任意方法执行 HTTP 请求
    - 参数：
      - **url**（必填）：目标 URL
+     - **method**（可选）：HTTP 方法（'GET'、'POST'、'PUT'、'PATCH'、'DELETE'）
      - **query**（可选）：查询参数键值对
      - **headers**（可选）：自定义请求头
      - **data**（可选）：请求体数据（文本）
      - **json**（可选）：请求体数据（JSON）
-     - **data** 和 **json** 不能同时使用
+       - **data** 和 **json** 不能同时使用
+   - 功能特性：
+     - 完整的 HTTP 响应，包括状态、头部和正文
+     - 查询参数自动 URL 编码
+     - JSON 数据自动设置 Content-Type 头
+   - 注意：LLM 可能在 headers 中指定 User-Agent，是否采用由 `--force-user-agent` 控制
 
-4. **http_put** - 执行 HTTP PUT 请求
-   - 参数：同 http_post
-
-5. **http_patch** - 执行 HTTP PATCH 请求
-   - 参数：与 http_post 相同
-
-6. **http_delete** - 执行 HTTP DELETE 请求
-   - 参数：与 http_post 相同
+**注意**：单独的 HTTP 方法工具（http_get、http_post、http_put、http_patch、http_delete）已被移除，并替换为统一的 **http_request** 工具。
 
 ## License
 MIT
