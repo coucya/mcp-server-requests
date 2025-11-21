@@ -3,9 +3,24 @@ import os
 
 from fastmcp import FastMCP, Context
 
+
 from .version import __version__
-from .request import mcp_http_request
+from .request import ArgumentError, RequestError, Response, http_request
 from .ua import random_ua
+from .utils import clean_html, html_to_markdown
+
+
+class McpError(Exception):
+    def __init__(self, message: str, reason: str | None = None, *args):
+        super().__init__(message, reason, *args)
+        self.message = message
+        self.reason = reason
+
+
+class ResponseError(McpError):
+    def __init__(self, response: Response, message: str, reason: str | None = None, *args):
+        super().__init__(message, reason, response, *args)
+        self.response = response
 
 
 def get_user_agent(
@@ -26,59 +41,211 @@ def get_user_agent(
     return ua
 
 
-async def _validate_file_path(
+def format_response_result(
+    response: Response,
+    *,
+    format_status: bool | None = None,
+    format_headers: bool | None = None,
+    return_content: Literal["raw", "basic_clean", "strict_clean", "markdown"] = "raw",
+) -> str:
+    http_version = response.version
+    status = response.status_code
+    reason = response.reason
+    headers = response.headers
+    content = response.content
+    content_type = response.content_type
+
+    if not isinstance(content_type, str):
+        content_type = 'application/octet-stream'
+
+    if content_type.startswith("text/") or content_type.startswith("application/json"):
+        try:
+            if isinstance(content, (bytes, bytearray)):
+                content = content.decode('utf-8')
+            else:
+                content = str(content)
+        except UnicodeDecodeError as e:
+            err_message = f"response content type is \"{content_type}\", but not utf-8 encoded'"
+            raise ResponseError(response, err_message) from e
+        except Exception as e:
+            err_message = f"response content type is \"{content_type}\", but cannot be converted to a string"
+            raise ResponseError(response, err_message) from e
+    else:
+        err_message = f'response content type is "{content_type}", cannot be converted to a string'
+        raise ResponseError(response, err_message)
+
+    if content_type.startswith("text/html"):
+        if return_content == "raw":
+            pass
+        elif return_content == "basic_clean":
+            content = clean_html(content, allowed_attrs=True)
+        elif return_content == "strict_clean":
+            content = clean_html(content, allowed_attrs=("id", "src", "href"))
+        elif return_content == "markdown":
+            content = html_to_markdown(content)
+
+    strs = []
+
+    if format_status:
+        strs.append(f"{http_version} {status} {reason}\r\n")
+    if format_headers:
+        response_header_str = "\r\n".join(f"{k}: {v}" for k, v in headers)
+        strs.append(response_header_str)
+    if len(strs) > 0:
+        strs.append("\r\n\r\n")
+    strs.append(content)
+
+    return "\r\n".join(strs)
+
+
+def format_error_result(error: Exception):
+    if isinstance(error, ArgumentError):
+        return f"found an error while checking parameters:\n" \
+            f"{error.message}\n"
+    elif isinstance(error, RequestError):
+        return "encountered an internal error when making a request, with the following error message:\n" \
+            f"{error.message}"
+    elif isinstance(error, ResponseError):
+        resp = error.response
+        err_reason = f", but {error.reason}" if error.reason else ", but there was an error when processing the response"
+        return f"{resp.version} {resp.status_code} {resp.reason}{err_reason}\r\n" \
+            "Content-Type: text/plain\r\n\r\n" \
+            "The request sent has successfully received a response, but an error occurred during the processing of the response." \
+            " The error message is as follows:\r\n" \
+            f"{error.message}"
+    else:
+        return "An unexpected error occurred" \
+
+
+
+def mcp_http_request(
+    method: str,
+    url: str,
+    *,
+    query: Optional[dict] = None,
+    data: Optional[str | bytes | bytearray] = None,
+    json: Optional[dict] = None,
+    headers: Optional[dict] = None,
+    user_agent: Optional[str] = None,
+    force_user_agnet: Optional[bool] = None,
+    format_status: bool = True,
+    format_headers: bool = True,
+    return_content: Literal['raw', 'basic_clean', 'strict_clean', 'markdown'] = "raw",
+) -> str:
+    hs = {}
+
+    if headers:
+        hs.update(headers)
+
+    if force_user_agnet:
+        if user_agent:
+            hs["User-Agent"] = user_agent
+    else:
+        if "User-Agent" not in hs and user_agent:
+            hs["User-Agent"] = user_agent
+
+    try:
+        response = http_request(
+            method, url,
+            query=query,
+            headers=hs,
+            data=data,
+            json_=json
+        )
+
+        return format_response_result(
+            response,
+            format_status=format_status,
+            format_headers=format_headers,
+            return_content=return_content
+        )
+    except Exception as e:
+        return format_error_result(e)
+
+
+async def fetch_content_and_write_to_file(
+    url: str,
     file_path: str,
-    ctx: Context | None = None,
+    return_content: Literal['raw', 'basic_clean', 'strict_clean', 'markdown'],
+    ctx: Context,
     use_workspace_root: bool = False,
-    allow_external_file_access: bool = False
-) -> tuple[str, str]:
-    """Validate file path and return (status, normalized_path).
+    allow_external_file_access: bool = False,
+    user_agent: str = "mcp-server-requests",
+    force_user_agent: bool = False
+) -> str:
+    try:
+        # Validate file path
+        validated_path = file_path
 
-    Returns:
-        tuple: (status, normalized_path) where status is "success" or an error message
-    """
-    if use_workspace_root and ctx:
-        roots = await ctx.list_roots()
-        if len(roots) == 0:
-            return "Error: No workspace root available", ""
-        if len(roots) > 1:
-            return "Error: Multiple workspace roots found, which is not supported", ""
+        if use_workspace_root and ctx:
+            roots = await ctx.list_roots()
+            if len(roots) == 0:
+                return "Error: No workspace root available"
+            if len(roots) > 1:
+                return "Error: Multiple workspace roots found, which is not supported"
 
-        if roots[0].uri.scheme != "file":
-            return "Error: Workspace root is not a file:// URI", ""
-        root = roots[0].uri.path or "/"
+            if roots[0].uri.scheme != "file":
+                return "Error: Workspace root is not a file:// URI"
+            root = roots[0].uri.path or "/"
 
-        if not os.path.isabs(file_path):
-            file_path = os.path.normpath(os.path.join(root, file_path))
+            if not os.path.isabs(file_path):
+                validated_path = os.path.normpath(os.path.abspath(os.path.join(root, file_path)))
 
-        if allow_external_file_access:
-            rel = os.path.relpath(file_path, root)
-            if rel.startswith(".."):
-                return f"Error: Access denied - path '{file_path}' is outside workspace root '{root}'", ""
+            if allow_external_file_access:
+                rel = os.path.relpath(validated_path, root)
+                if rel.startswith(".."):
+                    return f"Error: Access denied - path '{validated_path}' is outside workspace root '{root}'"
 
-    if not os.path.isabs(file_path):
-        return f"Error: Path must be absolute: {file_path}", ""
+        if not os.path.isabs(validated_path):
+            return f"Error: Path must be absolute: {validated_path}"
 
-    file_path = os.path.abspath(file_path)
+        # Set protected paths based on operating system
+        protected_paths = []
+        if os.name == 'nt':  # Windows
+            protected_paths.extend([
+                os.path.join('C:', 'Windows'),
+                os.path.join('C:', 'Program Files'),
+                os.path.join('C:', 'Program Files (x86)'),
+            ])
+        else:  # Linux/Mac
+            protected_paths.extend([
+                '/etc', '/usr', '/bin', '/sbin', '/lib', '/root',
+            ])
 
-    # Set protected paths based on operating system
-    protected_paths = []
-    if os.name == 'nt':  # Windows
-        protected_paths.extend([
-            os.path.join('C:', 'Windows'),
-            os.path.join('C:', 'Program Files'),
-            os.path.join('C:', 'Program Files (x86)'),
-        ])
-    else:  # Linux/Mac
-        protected_paths.extend([
-            '/etc', '/usr', '/bin', '/sbin', '/lib', '/root',
-        ])
+        for protected in protected_paths:
+            if validated_path.startswith(protected):
+                return f"Error: Do not allow writing to protected paths: {protected}"
 
-    for protected in protected_paths:
-        if file_path.startswith(protected):
-            return f"Error: Do not allow writing to protected paths: {protected}", ""
+        # Fetch content
+        content = mcp_http_request(
+            "GET", url,
+            return_content=return_content,
+            user_agent=user_agent,
+            force_user_agnet=force_user_agent,
+            format_status=False,
+            format_headers=False
+        )
 
-    return "success", file_path
+        # Create parent directories if needed
+        try:
+            dir_path = os.path.dirname(validated_path)
+            if dir_path:
+                os.makedirs(dir_path, exist_ok=True)
+        except OSError as e:
+            return f"Error: Unable to create directory for path '{validated_path}': {e}"
+
+        # Write content to file
+        try:
+            with open(validated_path, 'w', encoding='utf-8', newline='') as f:
+                f.write(content)
+        except OSError as e:
+            return f"Error: Unable to write to file '{validated_path}': {e}"
+
+        content_size = len(content)
+        return f"Content from '{url}' ({content_size:,} bytes) successfully written to: {validated_path}"
+
+    except Exception as e:
+        return f"Error: Failed to fetch content or write file: {e}"
 
 
 def create_mcp_server(
@@ -163,43 +330,16 @@ def create_mcp_server(
                 // Save cleaned content
                 fetch_to_file({url: "https://example.com/docs", file_path: "docs/cleaned.html", return_content: "strict_clean"})
             """
-            try:
-                # Validate file path with workspace context
-                status, validated_path = await _validate_file_path(
-                    file_path, ctx,
-                    use_workspace_root=True,
-                    allow_external_file_access=bool(allow_external_file_access)
-                )
-                if status != "success":
-                    return status
-
-                # Fetch content
-                content = mcp_http_request(
-                    "GET", url,
-                    return_content=return_content,
-                    user_agent=ua,
-                    force_user_agnet=ua_force,
-                    format_status=False,
-                    format_headers=False
-                )
-
-                try:
-                    dir_path = os.path.dirname(validated_path)
-                    if dir_path:
-                        os.makedirs(dir_path, exist_ok=True)
-                except OSError as e:
-                    return f"Error: Unable to create directory '{os.path.dirname(validated_path)}': {e}"
-
-                try:
-                    with open(validated_path, 'w', encoding='utf-8', newline='') as f:
-                        f.write(content)
-                except OSError as e:
-                    return f"Error: Unable to write to file '{validated_path}': {e}"
-
-                return f"File written successfully to: {validated_path}"
-
-            except Exception as e:
-                return f"Error: Failed to fetch content or write file: {e}"
+            return await fetch_content_and_write_to_file(
+                url=url,
+                file_path=file_path,
+                return_content=return_content,
+                ctx=ctx,
+                use_workspace_root=True,
+                allow_external_file_access=bool(allow_external_file_access),
+                user_agent=ua,
+                force_user_agent=ua_force if ua_force is not None else False
+            )
     else:
         @mcp.tool()
         async def fetch_to_file(
@@ -239,41 +379,16 @@ def create_mcp_server(
                 // Save cleaned content
                 fetch_to_file({url: "https://example.com/docs", file_path: "/tmp/docs/cleaned.html", return_content: "strict_clean"})
             """
-            try:
-                # Validate file path without workspace context
-                status, validated_path = await _validate_file_path(
-                    file_path, ctx,
-                    use_workspace_root=False,
-                    allow_external_file_access=False
-                )
-                if status != "success":
-                    return status
-
-                content = mcp_http_request(
-                    "GET", url,
-                    return_content=return_content,
-                    user_agent=ua,
-                    force_user_agnet=ua_force,
-                    format_status=False,
-                    format_headers=False
-                )
-
-                try:
-                    dir_path = os.path.dirname(validated_path)
-                    if dir_path:
-                        os.makedirs(dir_path, exist_ok=True)
-                except OSError as e:
-                    return f"Error: Unable to create directory '{os.path.dirname(validated_path)}': {e}"
-
-                try:
-                    with open(validated_path, 'w', encoding='utf-8', newline='') as f:
-                        f.write(content)
-                except OSError as e:
-                    return f"Error: Unable to write to file '{validated_path}': {e}"
-
-                return f"File written successfully to: {validated_path}"
-            except Exception as e:
-                return f"Error: Failed to fetch content or write file: {e}"
+            return await fetch_content_and_write_to_file(
+                url=url,
+                file_path=file_path,
+                return_content=return_content,
+                ctx=ctx,
+                use_workspace_root=False,
+                allow_external_file_access=False,
+                user_agent=ua,
+                force_user_agent=ua_force if ua_force is not None else False
+            )
 
     @mcp.tool()
     def http_request(

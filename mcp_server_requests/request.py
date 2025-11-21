@@ -45,25 +45,15 @@ class Response:
         return self._content_type
 
 
-class McpError(Exception):
+class RequestError(Exception):
     def __init__(self, message: str, reason: str | None = None, *args):
         super().__init__(message, reason, *args)
         self.message = message
         self.reason = reason
 
 
-class ArgumentError(McpError):
+class ArgumentError(RequestError):
     pass
-
-
-class RequestError(McpError):
-    pass
-
-
-class ResponseError(McpError):
-    def __init__(self, response: Response, message: str, reason: str | None = None, *args):
-        super().__init__(message, reason, response, *args)
-        self.response = response
 
 
 def merge_query_to_url(url: str, query_dict: Mapping[str, str | int | float]) -> str:
@@ -172,131 +162,3 @@ def http_request(
         raise RequestError(f"Failed to send request, {e}") from e
 
     return result
-
-
-def format_response_result(
-    response: Response,
-    *,
-    format_status: bool | None = None,
-    format_headers: bool | None = None,
-    return_content: Literal["raw", "basic_clean", "strict_clean", "markdown"] = "raw",
-) -> str:
-    http_version = response.version
-    status = response.status_code
-    reason = response.reason
-    headers = response.headers
-    content = response.content
-    content_type = response.content_type
-
-    if not isinstance(content_type, str):
-        content_type = 'application/octet-stream'
-
-    if content_type.startswith("text/") or content_type.startswith("application/json"):
-        try:
-            if isinstance(content, (bytes, bytearray)):
-                content = content.decode('utf-8')
-            else:
-                content = str(content)
-        except UnicodeDecodeError as e:
-            err_message = f"response content type is \"{content_type}\", but not utf-8 encoded'"
-            raise ResponseError(response, err_message) from e
-        except Exception as e:
-            err_message = f"response content type is \"{content_type}\", but cannot be converted to a string"
-            raise ResponseError(response, err_message) from e
-    else:
-        err_message = f'response content type is "{content_type}", cannot be converted to a string'
-        raise ResponseError(response, err_message)
-
-    if content_type.startswith("text/html"):
-        if return_content == "raw":
-            pass
-        elif return_content == "basic_clean":
-            content = clean_html(content, allowed_attrs=True)
-        elif return_content == "strict_clean":
-            content = clean_html(content, allowed_attrs=("id", "src", "href"))
-        elif return_content == "markdown":
-            content = html_to_markdown(content)
-
-    strs = []
-
-    if format_status:
-        strs.append(f"{http_version} {status} {reason}\r\n")
-    if format_headers:
-        response_header_str = "\r\n".join(f"{k}: {v}" for k, v in headers)
-        strs.append(response_header_str)
-    if len(strs) > 0:
-        strs.append("\r\n\r\n")
-    strs.append(content)
-
-    return "\r\n".join(strs)
-
-
-def format_error_result(error: Exception):
-    if isinstance(error, ArgumentError):
-        return "HTTP/1.1 500 MCP Service Internal Error, invalid argument\r\n" \
-            "Content-Type: text/plain\r\n\r\n" \
-            f"MCP service found an error while checking parameters:\r\n" \
-            f"{error.message}\r\n"
-    elif isinstance(error, RequestError):
-        return "HTTP/1.1 500 MCP Service Internal Error\r\n" \
-            "Content-Type: text/plain\r\n\r\n" \
-            "the MCP service encountered an internal error when making a request, with the following error message:\r\n" \
-            f"{error.message}"
-    elif isinstance(error, ResponseError):
-        resp = error.response
-        err_reason = f", but {error.reason}" if error.reason else ", but there was an error when processing the response"
-        return f"{resp.version} {resp.status_code} {resp.reason}{err_reason}\r\n" \
-            "Content-Type: text/plain\r\n\r\n" \
-            "The request sent has successfully received a response, but an error occurred during the processing of the response." \
-            " The error message is as follows:\r\n" \
-            f"{error.message}"
-    else:
-        return "HTTP/1.1 500 MCP Service Internal Error\r\n" \
-            "Content-Type: text/plain\r\n\r\n" \
-            "An unexpected error occurred in the MCP service." \
-
-
-
-def mcp_http_request(
-    method: str,
-    url: str,
-    *,
-    query: Optional[dict] = None,
-    data: Optional[str | bytes | bytearray] = None,
-    json: Optional[dict] = None,
-    headers: Optional[dict] = None,
-    user_agent: Optional[str] = None,
-    force_user_agnet: Optional[bool] = None,
-    format_status: bool = True,
-    format_headers: bool = True,
-    return_content: Literal['raw', 'basic_clean', 'strict_clean', 'markdown'] = "raw",
-) -> str:
-    hs = {}
-
-    if headers:
-        hs.update(headers)
-
-    if force_user_agnet:
-        if user_agent:
-            hs["User-Agent"] = user_agent
-    else:
-        if "User-Agent" not in hs and user_agent:
-            hs["User-Agent"] = user_agent
-
-    try:
-        response = http_request(
-            method, url,
-            query=query,
-            headers=hs,
-            data=data,
-            json_=json
-        )
-
-        return format_response_result(
-            response,
-            format_status=format_status,
-            format_headers=format_headers,
-            return_content=return_content
-        )
-    except Exception as e:
-        return format_error_result(e)

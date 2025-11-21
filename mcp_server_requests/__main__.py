@@ -5,7 +5,7 @@ import click
 from .server import create_mcp_server
 from .ua import list_ua_browsers, list_ua_oses
 from .utils import parse
-from .request import mcp_http_request
+from .server import mcp_http_request
 
 
 @click.group(invoke_without_command=True)
