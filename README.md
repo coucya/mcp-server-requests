@@ -7,14 +7,21 @@
 An MCP server that provides HTTP request capabilities, enabling LLMs to fetch and process web content.
 
 ## Features
-- Supports converting web content to Markdown format
-- Supports filtering out content useless for LLMs
-- Supports custom User-Agent headers
-- Supports random User-Agent headers
-- Supports custom request headers in HTTP requests
-- Supports full HTTP methods (GET, POST, PUT, DELETE, PATCH)
-- Supports writing web page content to files
-- LLMs can access complete HTTP response header information
+
+- **fetch**: Web content fetching tool
+  - Supports converting web content to Markdown format
+  - Supports filtering web content (non-visual elements like script, style, meta)
+  - Feeds into LLM context, reducing token consumption through Markdown conversion or filtering non-visual elements
+- **fetch_to_file**: Web content saving tool
+  - Web content is not fed into LLM context, avoiding excessive token consumption
+- **http_request**: Generic HTTP request tool
+  - Full HTTP method support (GET, POST, PUT, PATCH, DELETE)
+  - Supports custom request headers
+  - Supports text and JSON request bodies
+  - Returns complete HTTP response information (status, headers, body) for LLMs
+- Supports custom User-Agent
+- Supports random User-Agent generation
+- Supports using MCP Root capability, controlled by `--use-root`, usable with MCP Clients that have `root` capability
 
 ## Installation
 
@@ -123,7 +130,7 @@ Fetch content from the specified URL and return it in the specified format.
   - `"strict_clean"`: Strict cleanup, removing non-display tags and most HTML attributes, keeping only essential structure
   - `"markdown"`: Convert HTML content to clean Markdown format
 
-**Returns:** String - Content processed according to the specified format
+**Returns:** Content processed according to the specified format
 
 ---
 
@@ -142,7 +149,7 @@ Fetch content from the specified URL and save it to a file.
 - All files saved with UTF-8 encoding
 - When `--use-root` is enabled, can work with `--allow-external-file-access` to control file access scope
 
-**Returns:** String - Operation result or error message
+**Returns:** Operation result or error message
 
 ---
 
@@ -163,7 +170,7 @@ Send HTTP requests using any method and get complete responses.
 - When using `json` parameter, `Content-Type: application/json` is automatically set
 - When using `data` parameter, it's recommended to manually set appropriate `Content-Type`
 
-**Returns:** String - Complete HTTP response (status line, response headers, and response body)
+**Returns:** Complete HTTP response (status line, response headers, and response body)
 
 ---
 

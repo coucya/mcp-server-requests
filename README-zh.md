@@ -3,14 +3,21 @@
 一个提供 HTTP 请求能力的 MCP 服务，使 LLM 能够获取和处理网页内容。
 
 ## 特性
-- 支持将网页内容转换为 Markdown 格式
-- 支持过滤网页中对 LLM 无用的内容
-- 支持自定义 User-Agent 头
-- 支持随机 User-Agent 头
-- 支持在 HTTP 请求中自定义请求头
-- 支持完整的 HTTP 方法（GET、POST、PUT、DELETE、PATCH）
-- 支持将 web 页面内容写入文件
-- LLM 可获取完整的 HTTP 响应头信息
+
+- **fetch**：获取网页内容工具
+  - 支持网页内容转换为 Markdown 格式
+  - 支持过滤网页内容（script、style、meta 等非视觉元素）
+  - 填充到 LLM 上下文、通过转换为 Markdown 或过滤非视觉元素减少 tokens 消耗
+- **fetch_to_file**：保存网页内容到文件工具
+  - 网页内容不会填充到 LLM 上下文、不会过多消耗 tokens
+- **http_request**：通用 HTTP 请求工具
+  - 完整 HTTP 方法支持（GET、POST、PUT、PATCH、DELETE）
+  - 支持自定义请求头
+  - 支持文本和 JSON 请求体
+  - 为 LLM 返回完整 HTTP 响应信息（状态、响应头、响应体）
+- 支持自定义 User-Agent
+- 支持随机 User-Agent 生成
+- 支持使用 MCP Root 能力，用 `--use-root` 控制，可用于拥有 `root` 能力的 MCP Client
 
 ## 安装
 
