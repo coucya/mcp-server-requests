@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Optional, Literal, Union
+from typing import Mapping, Optional, Literal, Union
 import json
 
 import urllib
@@ -66,7 +66,7 @@ class ResponseError(McpError):
         self.response = response
 
 
-def merge_query_to_url(url: str, query_dict: dict[str, str | int | float]) -> str:
+def merge_query_to_url(url: str, query_dict: Mapping[str, str | int | float]) -> str:
     parsed_url = urlparse(url)
 
     original_query = parse_qsl(parsed_url.query)
