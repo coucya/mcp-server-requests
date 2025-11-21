@@ -52,7 +52,7 @@ python -m mcp_server_requests
 - `--random-user-agent [browser=xxx;os=xxx]`：使用随机生成的 User-Agent
 - `--force-user-agent`：强制使用命令行指定的 User-Agent，忽略 LLM 提供的 UA
 - `--list-os-and-browser`：列出可用于生成随机 User-Agent 的浏览器和操作系统
-- `--use-workspace-root`：启用工作区根目录支持的文件操作
+- `--use-workspace-root`：启用工作区根目录支持的文件操作（需要支持 root 能力的 MCP Client）
 - `--allow-outside-of-workspace`：允许在工作区外进行文件操作（仅与 --use-workspace-root 一起使用）
 
 #### 选项说明
@@ -75,6 +75,7 @@ python -m mcp_server_requests
     - 否则使用命令行指定的 User-Agent
 
 - `--use-workspace-root` 启用相对于工作区根目录的文件操作：
+  - **前提条件**：需要支持 root 能力的 MCP Client
   - 启用时：文件路径相对于工作区根目录
   - 禁用时：文件路径必须为绝对路径
   - `--allow-outside-of-workspace`：控制是否允许在工作区外操作文件（仅能与 --use-workspace-root 一起使用）

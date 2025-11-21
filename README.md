@@ -56,7 +56,7 @@ python -m mcp_server_requests
 - `--random-user-agent [browser=xxx;os=xxx]`: Use randomly generated User-Agent
 - `--force-user-agent`: Force using command line specified User-Agent, ignoring LLM provided UA
 - `--list-os-and-browser`: List available browsers and OS for random User-Agent generation
-- `--use-workspace-root`: Enable workspace root support for file operations
+- `--use-workspace-root`: Enable workspace root support for file operations (requires MCP Client with root capability support)
 - `--allow-outside-of-workspace`: Allow file operations outside workspace (only with --use-workspace-root)
 
 #### Option Details
@@ -79,6 +79,7 @@ python -m mcp_server_requests
     - Otherwise use command line specified User-Agent
 
 - `--use-workspace-root` enables file operations relative to workspace root:
+  - **Prerequisite**: Requires MCP Client with root capability support
   - When enabled: File paths are relative to workspace root
   - When disabled: File paths must be absolute paths
   - `--allow-outside-of-workspace`: Controls whether files outside workspace are allowed (only usable with --use-workspace-root)
