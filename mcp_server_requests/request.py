@@ -30,12 +30,19 @@ class Response:
     headers: list[tuple[str, str]]
     content: str | bytes | bytearray
 
+    _content_type: str | None = None
+
     @property
     def content_type(self) -> str:
-        for k, v in self.headers:
-            if k.lower() == "content-type":
-                return v
-        return "application/octet-stream"
+        if self._content_type is  None:
+            for k, v in self.headers:
+                if k.lower() == "content-type":
+                    self._content_type = v
+                
+            if self._content_type is  None:
+                self._content_type = "application/octet-stream"
+
+        return self._content_type
 
 
 class McpError(Exception):
@@ -173,7 +180,6 @@ def format_response_result(
     format_headers: bool | None = None,
     return_content: Literal["raw", "basic_clean", "strict_clean", "markdown"] = "raw",
 ) -> str:
-    """将HTTP响应格式化为字符串"""
     http_version = response.version
     status = response.status_code
     reason = response.reason

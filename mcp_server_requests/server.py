@@ -5,7 +5,7 @@ from mcp.server.fastmcp import FastMCP
 
 from .version import __version__
 from .request import mcp_http_request
-from .ua import list_ua_browsers, list_ua_oses, random_ua
+from .ua import random_ua
 
 
 def get_user_agent(
@@ -41,24 +41,24 @@ def create_mcp_server(
 
     @mcp.tool()
     def fetch(url: str, *, return_content: Literal['raw', 'basic_clean', 'strict_clean', 'markdown'] = "markdown") -> str:
-        """获取网页内容。
-        - 如果是 HTML, 则根据 returm 返回合适的内容，
-        - 如果不是 HTML，但是是 Text 或 Json 内容，则直接返回其内容。
-        - 如果是其它类型的内容，则返回错误信息。
+        """Fetch web page content.
+        - If it's HTML, return appropriate content based on the return_content parameter.
+        - If it's not HTML but is Text or JSON content, return its content directly.
+        - If it's other types of content, return an error message.
 
         Args:
-            url (str): 要获取的网页 URL。
-            return_content ("raw" | "basic_clean" | "strict_clean" | "markdown", optional): 默认为 "markdown"，用于控制返回 html 内容的方式，
-                - 如果为 raw，返回原始 HTML 内容。
-                - 如果为 basic_clean，返回过滤后的 HTML 内容，过滤掉所有不会显示的标签，如 script, style 等。
-                - 如果为 strict_clean，返回过滤后的 HTML 内容，过滤掉所有不会显示的标签，如 script, style 等，并且会删除大部分无用的 HTML 属性。
-                - 如果为 markdown，HTML 转换为 Markdown 后返回。
+            url (str): The URL of the web page to fetch.
+            return_content ("raw" | "basic_clean" | "strict_clean" | "markdown", optional): Defaults to "markdown". Controls how HTML content is returned:
+                - If "raw", return original HTML content.
+                - If "basic_clean", return filtered HTML content, removing all non-displaying tags like script, style, etc.
+                - If "strict_clean", return filtered HTML content, removing all non-displaying tags like script, style, etc., and delete most useless HTML attributes.
+                - If "markdown", HTML is converted to Markdown before returning.
 
         Returns:
-            - 如果 return_content 为 raw，返回原始 HTML 内容。
-            - 如果 return_content 为 basic_clean，返回过滤后的 HTML 内容，过滤掉所有不会显示的标签，如 script, style 等。
-            - 如果 return_content 为 strict_clean，返回过滤后的 HTML 内容，过滤掉所有不会显示的标签，如 script, style 等，并且会删除大部分无用的 HTML 属性。
-            - 如果 return_content 为 markdown，HTML 转换为 Markdown 后返回。
+            - If return_content is "raw", returns original HTML content.
+            - If return_content is "basic_clean", returns filtered HTML content with non-displaying tags removed.
+            - If return_content is "strict_clean", returns filtered HTML content with non-displaying tags and most attributes removed.
+            - If return_content is "markdown", returns content converted to Markdown.
         """
         return mcp_http_request("GET", url, return_content=return_content, user_agent=ua, force_user_agnet=ua_force, format_headers=False)
 
@@ -69,25 +69,25 @@ def create_mcp_server(
         *,
         return_content: Literal['raw', 'basic_clean', 'strict_clean', 'markdown'] = "markdown"
     ) -> str:
-        """获取网页内容并保存到文件。
-        - 如果是 HTML, 则根据 return_content 返回合适的内容，
-        - 如果不是 HTML，但是是 Text 或 Json 内容，则直接保存其内容。
-        - 如果是其它类型的内容，则返回错误信息。
+        """Fetch web page content and save it to a file.
+        - If it's HTML, save appropriate content based on the return_content parameter.
+        - If it's not HTML but is Text or JSON content, save its content directly.
+        - If it's other types of content, return an error message.
 
         Args:
-            url (str): 要获取的网页 URL。
-            file_path (str): 要保存到的文件路径，必须是绝对路径。
-            return_content ("raw" | "basic_clean" | "strict_clean" | "markdown", optional): 默认为 "markdown"，用于控制返回 html 内容的方式，
-                - 如果为 raw，返回原始 HTML 内容。
-                - 如果为 basic_clean，返回过滤后的 HTML 内容，过滤掉所有不会显示的标签，如 script, style 等。
-                - 如果为 strict_clean，返回过滤后的 HTML 内容，过滤掉所有不会显示的标签，如 script, style 等，并且会删除大部分无用的 HTML 属性。
-                - 如果为 markdown，HTML 转换为 Markdown 后返回。
+            url (str): The URL of the web page to fetch.
+            file_path (str): The absolute file path where the content should be saved.
+            return_content ("raw" | "basic_clean" | "strict_clean" | "markdown", optional): Defaults to "markdown". Controls how HTML content is processed:
+                - If "raw", save original HTML content.
+                - If "basic_clean", save filtered HTML content, removing all non-displaying tags like script, style, etc.
+                - If "strict_clean", save filtered HTML content, removing all non-displaying tags like script, style, etc., and delete most useless HTML attributes.
+                - If "markdown", HTML is converted to Markdown before saving.
 
         Returns:
-            - 成功时返回文件保存路径
-            - 如果路径不安全则返回错误信息
+            - File save path on success
+            - Error message if the path is unsafe
         """
-        # 根据操作系统设置受保护路径
+        # Set protected paths based on operating system
         protected_paths = []
         if os.name == 'nt':  # Windows
             protected_paths.extend([
@@ -108,18 +108,18 @@ def create_mcp_server(
         if not os.path.isabs(file_path):
             return f"Error: Path must be absolute: {file_path}"
 
-        # 检查路径安全性
+        # Check path security
         file_path = os.path.abspath(file_path)
         for protected in protected_paths:
             if file_path.startswith(protected):
                 return f"Error: Do not allow writing to protected paths: {protected}"
 
-        # 获取内容
+        # Get content
         content = mcp_http_request("GET", url, return_content=return_content,
                                    user_agent=ua, force_user_agnet=ua_force,
                                    format_headers=False)
 
-        # 写入文件
+        # Write to file
         os.makedirs(os.path.dirname(file_path), exist_ok=True)
         with open(file_path, 'w', encoding='utf-8') as f:
             f.write(content)
@@ -133,16 +133,16 @@ def create_mcp_server(
         query: Optional[Dict[str, str | int | float]] = None,
         headers: Optional[Dict[str, str]] = None
     ) -> str:
-        """执行 HTTP GET 请求。
+        """Execute an HTTP GET request.
 
         Args:
-            url (str): 请求的目标 URL。
-            query (Dict[str, str | int | float], optional): 可选参数，查询参数键值对。参数值会自动转换为字符串，并且会拼接到 url 里。
-                例如: {'key1': 'value1', 'key2': 2}会被转换为key1=value1&key2=2，并拼接到 url。
-            headers (Dict[str, str], optional): 可选参数，自定义的 http 请求头。
+            url (str): The target URL for the request.
+            query (Dict[str, str | int | float], optional): Optional query parameter key-value pairs. Parameter values are automatically converted to strings and appended to the URL.
+                For example: {'key1': 'value1', 'key2': 2} is converted to key1=value1&key2=2 and appended to the URL.
+            headers (Dict[str, str], optional): Optional custom HTTP request headers.
 
         Returns:
-            str: 标准HTTP响应格式的字符串，包含状态行、响应头和响应体。
+            str: Standard HTTP response format string containing status line, response headers, and response body.
         """
         return mcp_http_request("GET", url, query=query, headers=headers, user_agent=ua, force_user_agnet=ua_force)
 
@@ -155,18 +155,18 @@ def create_mcp_server(
         data: Optional[str] = None,
         json: Optional[Any] = None,
     ) -> str:
-        """执行 HTTP POST 请求。
+        """Execute an HTTP POST request.
 
         Args:
-            url (str): 请求的目标 URL。
-            query (Dict[str, str | int | float], optional): 可选参数，查询参数键值对。参数值会自动转换为字符串，并且会拼接到 url 里。
-                例如: {'key1': 'value1', 'key2': 2}会被转换为key1=value1&key2=2，并拼接到 url。
-            headers (Dict[str, str], optional): 可选参数，自定义的 http 请求头。
-            data (str, optional): 可选参数，要发送的 http 请求体数据，必须是文本，data 和 json 参数不能同时使用。
-            json (Any, optional): 可选参数，要发送的 http 请求体数据，以 JSON 数据，会自动序列化为JSON字符串，data 和 json 参数不能同时使用。
+            url (str): The target URL for the request.
+            query (Dict[str, str | int | float], optional): Optional query parameter key-value pairs. Parameter values are automatically converted to strings and appended to the URL.
+                For example: {'key1': 'value1', 'key2': 2} is converted to key1=value1&key2=2 and appended to the URL.
+            headers (Dict[str, str], optional): Optional custom HTTP request headers.
+            data (str, optional): Optional HTTP request body data, must be text. The data and json parameters cannot be used simultaneously.
+            json (Any, optional): Optional HTTP request body data as JSON, which will be automatically serialized to a JSON string. The data and json parameters cannot be used simultaneously.
 
         Returns:
-            str: 标准HTTP响应格式的字符串，包含状态行、响应头和响应体。
+            str: Standard HTTP response format string containing status line, response headers, and response body.
         """
         return mcp_http_request("POST", url, query=query, data=data, json=json, headers=headers, user_agent=ua, force_user_agnet=ua_force)
 
@@ -179,18 +179,18 @@ def create_mcp_server(
         data: Optional[str] = None,
         json: Optional[Any] = None,
     ) -> str:
-        """执行 HTTP PUT 请求。
+        """Execute an HTTP PUT request.
 
         Args:
-            url (str): 请求的目标 URL。
-            query (Dict[str, str | int | float], optional): 查询参数键值对。参数值会自动转换为字符串，并且会拼接到 url 里。
-                例如: {'key1': 'value1', 'key2': 2}会被转换为key1=value1&key2=2，并拼接到 url。
-            headers (Dict[str, str], optional): 可选参数，自定义的 http 请求头。
-            data (str, optional): 可选参数，要发送的 http 请求体数据，必须是文本，data 和 json 参数不能同时使用。
-            json (Any, optional): 可选参数，要发送的 http 请求体数据，以 JSON 数据，会自动序列化为JSON字符串，data 和 json 参数不能同时使用。
+            url (str): The target URL for the request.
+            query (Dict[str, str | int | float], optional): Query parameter key-value pairs. Parameter values are automatically converted to strings and appended to the URL.
+                For example: {'key1': 'value1', 'key2': 2} is converted to key1=value1&key2=2 and appended to the URL.
+            headers (Dict[str, str], optional): Optional custom HTTP request headers.
+            data (str, optional): Optional HTTP request body data, must be text. The data and json parameters cannot be used simultaneously.
+            json (Any, optional): Optional HTTP request body data as JSON, which will be automatically serialized to a JSON string. The data and json parameters cannot be used simultaneously.
 
         Returns:
-            str: 标准HTTP响应格式的字符串，包含状态行、响应头和响应体。
+            str: Standard HTTP response format string containing status line, response headers, and response body.
         """
         return mcp_http_request("PUT", url, query=query, data=data, json=json, headers=headers, user_agent=ua, force_user_agnet=ua_force)
 
@@ -203,18 +203,18 @@ def create_mcp_server(
         data: Optional[str] = None,
         json: Optional[Any] = None,
     ) -> str:
-        """执行H TTP PATCH 请求。
+        """Execute an HTTP PATCH request.
 
         Args:
-            url (str): 请求的目标 URL。
-            query (Dict[str, str | int | float], optional): 查询参数键值对。参数值会自动转换为字符串，并且会拼接到 url 里。
-                例如: {'key1': 'value1', 'key2': 2}会被转换为key1=value1&key2=2，并拼接到 url。
-            headers (Dict[str, str], optional): 可选参数，自定义的 http 请求头。
-            data (str, optional): 可选参数，要发送的 http 请求体数据，必须是文本，data 和 json 参数不能同时使用。
-            json (Any, optional): 可选参数，要发送的 http 请求体数据，以 JSON 数据，会自动序列化为JSON字符串，data 和 json 参数不能同时使用。
+            url (str): The target URL for the request.
+            query (Dict[str, str | int | float], optional): Query parameter key-value pairs. Parameter values are automatically converted to strings and appended to the URL.
+                For example: {'key1': 'value1', 'key2': 2} is converted to key1=value1&key2=2 and appended to the URL.
+            headers (Dict[str, str], optional): Optional custom HTTP request headers.
+            data (str, optional): Optional HTTP request body data, must be text. The data and json parameters cannot be used simultaneously.
+            json (Any, optional): Optional HTTP request body data as JSON, which will be automatically serialized to a JSON string. The data and json parameters cannot be used simultaneously.
 
         Returns:
-            str: 标准HTTP响应格式的字符串，包含状态行、响应头和响应体。
+            str: Standard HTTP response format string containing status line, response headers, and response body.
         """
         return mcp_http_request("PATCH", url, query=query, data=data, json=json, headers=headers, user_agent=ua, force_user_agnet=ua_force)
 
@@ -227,18 +227,18 @@ def create_mcp_server(
         data: Optional[str] = None,
         json: Optional[Any] = None,
     ) -> str:
-        """执行 HTTP DELETE 请求。
+        """Execute an HTTP DELETE request.
 
         Args:
-            url (str): 请求的目标 URL。
-            query (Dict[str, str | int | float], optional): 查询参数键值对。参数值会自动转换为字符串，并且会拼接到 url 里。
-                例如: {'key1': 'value1', 'key2': 2}会被转换为key1=value1&key2=2，并拼接到 url。
-            headers (Dict[str, str], optional): 可选参数，自定义的 http 请求头。
-            data (str, optional): 可选参数，要发送的 http 请求体数据，必须是文本，data 和 json 参数不能同时使用。
-            json (Any, optional): 可选参数，要发送的 http 请求体数据，以 JSON 数据，会自动序列化为JSON字符串，data 和 json 参数不能同时使用。
+            url (str): The target URL for the request.
+            query (Dict[str, str | int | float], optional): Query parameter key-value pairs. Parameter values are automatically converted to strings and appended to the URL.
+                For example: {'key1': 'value1', 'key2': 2} is converted to key1=value1&key2=2 and appended to the URL.
+            headers (Dict[str, str], optional): Optional custom HTTP request headers.
+            data (str, optional): Optional HTTP request body data, must be text. The data and json parameters cannot be used simultaneously.
+            json (Any, optional): Optional HTTP request body data as JSON, which will be automatically serialized to a JSON string. The data and json parameters cannot be used simultaneously.
 
         Returns:
-            str: 标准HTTP响应格式的字符串，包含状态行、响应头和响应体。
+            str: Standard HTTP response format string containing status line, response headers, and response body.
         """
         return mcp_http_request("DELETE", url, query=query, data=data, json=json, headers=headers, user_agent=ua, force_user_agnet=ua_force)
 
