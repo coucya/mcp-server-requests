@@ -1,4 +1,4 @@
-from typing import Dict, Any, Optional, Literal
+from typing import Dict, Any, Optional, Literal, Annotated
 import os
 
 from fastmcp import FastMCP, Context
@@ -97,56 +97,71 @@ def create_mcp_server(
     ua = get_user_agent(ua=ua, ua_random=ua_random, ua_os=ua_os, ua_browser=ua_browser)
 
     @mcp.tool()
-    def fetch(url: str, *, return_content: Literal['raw', 'basic_clean', 'strict_clean', 'markdown'] = "markdown") -> str:
-        """Fetch and process web page content.
+    def fetch(
+        url: Annotated[str, "(require) The URL to fetch content from"],
+        return_content: Annotated[Literal['raw', 'basic_clean', 'strict_clean', 'markdown'], "(optional, Defaults to \"markdown\") processing format for HTML content"] = "markdown",
+    ) -> str:
+        """Fetch web page content
 
-        This tool retrieves web content and processes it according to the specified format:
-        - HTML content is processed based on the return_content parameter
-        - Text or JSON content is returned directly
-        - Other content types return an error message
+        Function/Features:
+        - Retrieves web page content from any HTTP/HTTPS URL
 
         Args:
             url (str): The URL to fetch content from.
-            return_content (Literal['raw', 'basic_clean', 'strict_clean', 'markdown'], optional):
+            return_content ('raw' | 'basic_clean' | 'strict_clean' | 'markdown', optional):
                 Processing format for HTML content. Defaults to "markdown".
-                - "raw": Returns unmodified HTML content
-                - "basic_clean": Returns HTML with non-displaying tags removed (script, style, etc.)
-                - "strict_clean": Returns HTML with non-displaying tags and most attributes removed
-                - "markdown": Converts HTML content to Markdown format
+                - "raw": Returns unmodified HTML content with full response headers
+                - "basic_clean": Removes non-displaying tags (script, style, meta, etc.) while preserving structure
+                - "strict_clean": Removes non-displaying tags and most HTML attributes, keeping only essential structure
+                - "markdown": Converts HTML content to clean, readable Markdown format
 
-        Returns:
-            str: Processed content based on the specified return_content format.
+        Examples:
+            // Returns content as markdown
+            fetch({url: "https://example.com"})
+
+            // Returns raw HTML content
+            fetch({url: "https://api.example.com/data", return_content: "raw"})  
         """
         return mcp_http_request("GET", url, return_content=return_content, user_agent=ua, force_user_agnet=ua_force, format_headers=False)
 
     if use_workspace_root:
         @mcp.tool()
         async def fetch_to_file(
-            url: str,
-            file_path: str,
+            url: Annotated[str, "(require) The URL to fetch content from"],
+            file_path: Annotated[str, "(require) File path where the content will be saved"],
             *,
-            return_content: Literal['raw', 'basic_clean', 'strict_clean', 'markdown'] = "markdown",
+            return_content: Annotated[Literal['raw', 'basic_clean', 'strict_clean', 'markdown'], "(optional, Defaults to \"markdown\") processing format for HTML content"] = "markdown",
             ctx: Context,
         ) -> str:
-            """Fetch web content and save it to a file in the workspace.
+            """Fetch web content and save it to a file in the workspace
 
-            This tool retrieves web content, processes it according to the specified format,
-            and saves it to the provided file path relative to the workspace root.
+            Function/Features:
+            - Retrieves web content from any HTTP/HTTPS URL and saves it to a file
+            - Automatic directory creation for nested file paths
+
+            Notes:
+            - Automatically creates parent directories if they don't exist
+            - Uses UTF-8 encoding for all saved files
+            - parameter `file_path` **must** be a relative path (relative to the workspace root)
 
             Args:
                 url (str): The URL to fetch content from.
-                file_path (str): File path where the content will be saved. Can be relative
-                               to workspace root or absolute. If relative, it will be resolved
-                               against the workspace root.
-                return_content (Literal['raw', 'basic_clean', 'strict_clean', 'markdown'], optional):
-                    Processing format for HTML content. Defaults to "markdown".
-                    - "raw": Saves unmodified HTML content
-                    - "basic_clean": Saves HTML with non-displaying tags removed (script, style, etc.)
-                    - "strict_clean": Saves HTML with non-displaying tags and most attributes removed
-                    - "markdown": Converts HTML to Markdown format before saving
+                file_path (str): File path where the content will be saved.
+                return_content ('raw' | 'basic_clean' | 'strict_clean' | 'markdown'], optional): Processing format for HTML content. Defaults to "markdown".
+                  - "raw": Saves unmodified HTML content
+                  - "basic_clean": Saves HTML with non-displaying tags removed (script, style, etc.) while preserving structure
+                  - "strict_clean": Saves HTML with non-displaying tags and most HTML attributes removed, keeping only essential structure
+                  - "markdown": Converts HTML content to clean, readable Markdown format before saving
 
-            Returns:
-                str: Success message with file path, or error message if path validation fails.
+            Examples:
+                // Save web page as markdown in workspace
+                fetch_to_file({url: "https://example.com", file_path: "content/example.md"})
+
+                // Save raw HTML content
+                fetch_to_file({url: "https://api.example.com/data", file_path: "data/response.html", return_content: "raw"})
+
+                // Save cleaned content
+                fetch_to_file({url: "https://example.com/docs", file_path: "docs/cleaned.html", return_content: "strict_clean"})
             """
             try:
                 # Validate file path with workspace context
@@ -164,6 +179,7 @@ def create_mcp_server(
                     return_content=return_content,
                     user_agent=ua,
                     force_user_agnet=ua_force,
+                    format_status=False,
                     format_headers=False
                 )
 
@@ -187,30 +203,41 @@ def create_mcp_server(
     else:
         @mcp.tool()
         async def fetch_to_file(
-            url: str,
-            file_path: str,
+            url: Annotated[str, "(require) The URL to fetch content from"],
+            file_path: Annotated[str, "(require) Absolute file path where the content will be saved. The path must be absolute and will be validated for security"],
             *,
-            return_content: Literal['raw', 'basic_clean', 'strict_clean', 'markdown'] = "markdown",
+            return_content: Annotated[Literal['raw', 'basic_clean', 'strict_clean', 'markdown'], "(optional, Defaults to \"markdown\") processing format for HTML content"] = "markdown",
             ctx: Context,
         ) -> str:
-            """Fetch web content and save it to a file.
+            """Fetch web content and save it to a file in the workspace
 
-            This tool retrieves web content, processes it according to the specified format,
-            and saves it to the provided absolute file path.
+            Function/Features:
+            - Retrieves web content from any HTTP/HTTPS URL and saves it to a file
+            - Automatic directory creation for nested file paths
+
+            Notes:
+            - Automatically creates parent directories if they don't exist
+            - Uses UTF-8 encoding for all saved files
+            - parameter `file_path` **must** be a absolute path
 
             Args:
                 url (str): The URL to fetch content from.
-                file_path (str): Absolute file path where the content will be saved.
-                               The path must be absolute and will be validated for security.
-                return_content (Literal['raw', 'basic_clean', 'strict_clean', 'markdown'], optional):
-                    Processing format for HTML content. Defaults to "markdown".
-                    - "raw": Saves unmodified HTML content
-                    - "basic_clean": Saves HTML with non-displaying tags removed (script, style, etc.)
-                    - "strict_clean": Saves HTML with non-displaying tags and most attributes removed
-                    - "markdown": Converts HTML to Markdown format before saving
+                file_path (str): File path where the content will be saved.
+                return_content ('raw' | 'basic_clean' | 'strict_clean' | 'markdown'], optional): Processing format for HTML content. Defaults to "markdown".
+                  - "raw": Saves unmodified HTML content
+                  - "basic_clean": Saves HTML with non-displaying tags removed (script, style, etc.) while preserving structure
+                  - "strict_clean": Saves HTML with non-displaying tags and most HTML attributes removed, keeping only essential structure
+                  - "markdown": Converts HTML content to clean, readable Markdown format before saving
 
-            Returns:
-                str: Success message with file path, or error message if path validation fails.
+            Examples:
+                // Save web page as markdown
+                fetch_to_file({url: "https://example.com", file_path: "/home/user/content/example.md"})
+
+                // Save raw HTML content
+                fetch_to_file({url: "https://api.example.com/data", file_path: "C:\\data\\response.html", return_content: "raw"})
+
+                // Save cleaned content
+                fetch_to_file({url: "https://example.com/docs", file_path: "/tmp/docs/cleaned.html", return_content: "strict_clean"})
             """
             try:
                 # Validate file path without workspace context
@@ -227,6 +254,7 @@ def create_mcp_server(
                     return_content=return_content,
                     user_agent=ua,
                     force_user_agnet=ua_force,
+                    format_status=False,
                     format_headers=False
                 )
 
@@ -248,134 +276,62 @@ def create_mcp_server(
                 return f"Error: Failed to fetch content or write file: {e}"
 
     @mcp.tool()
-    def http_get(
-        url: str,
+    def http_request(
+        url: Annotated[str, "(require) Target URL for the HTTP request"],
         *,
-        query: Optional[Dict[str, str | int | float]] = None,
-        headers: Optional[Dict[str, str]] = None
+        method: Annotated[Literal['GET', 'POST', 'PUT', 'PATCH', 'DELETE'], "(optional, Defaults to \"GET\") HTTP method to use for the request"] = "GET",
+        query: Annotated[Optional[Dict[str, str | int | float]], "(optional) Query parameters to append to the URL"] = None,
+        headers: Annotated[Optional[Dict[str, str]], "(optional) Custom HTTP request headers"] = None,
+        data: Annotated[Optional[str], "(optional) Text data to send in the request body. Cannot be used with 'json'"] = None,
+        json: Annotated[Optional[Any], "(optional) JSON to send in the request body. Cannot be used with 'data'"] = None,
     ) -> str:
-        """Execute an HTTP GET request.
+        """Execute an HTTP request with the specified method
 
-        Sends a GET request to the specified URL with optional query parameters and headers.
+        Function/Features:
+        - Sends HTTP requests using any standard method (GET, POST, PUT, PATCH, DELETE)
+        - Allows custom HTTP headers
+        - Returns **complete** HTTP response including status, headers, and body
+
+        Notes:
+        - 'data' and 'json' parameters are mutually exclusive - use only one
+        - When using 'json', the Content-Type header is automatically set to 'application/json'
+        - When using 'data', you may need to set appropriate Content-Type header manually
+        - Query parameters are URL-encoded automatically and appended to the URL
+        - The response includes the full HTTP response with status line, all headers, and body
 
         Args:
-            url (str): Target URL for the GET request.
-            query (Optional[Dict[str, str | int | float]], optional): Query parameters to append to the URL.
-                Values are automatically converted to strings. Example: {'key1': 'value1', 'key2': 2}
-                becomes "key1=value1&key2=2" appended to the URL.
-            headers (Optional[Dict[str, str]], optional): Custom HTTP request headers.
+            url (str): Target URL for the HTTP request.
+            method ('GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'], optional): HTTP method to use. Defaults to "GET".
+            query ({ [string]: string | number }, optional): Query parameters to append to the URL. Values are automatically converted to strings. Example: {'key1': 'value1', 'key2': 2}, becomes "key1=value1&key2=2" appended to the URL.
+            headers ({ [string]: string }, optional): Custom HTTP request headers.
+            data (str, optional): Text data to send in the request body. Cannot be used with 'json'.
+            json (Any JSON, optional): Data to serialize as JSON and send in the request body. Cannot be used with 'data'.
 
-        Returns:
-            str: Complete HTTP response including status line, headers, and body.
+        Examples:
+            // GET request (default method)
+            http_request({url: "https://api.example.com/data"})
+
+            // GET request with query parameters
+            http_request({url: "https://api.example.com/search", query: {"q": "test", "limit": 10}})
+
+            // POST request with JSON data
+            http_request({url: "https://api.example.com/users", method: "POST", json: {"name": "John", "age": 30}})
+
+            // POST request with raw text data
+            http_request({url: "https://api.example.com/log", method: "POST", data: "This is a log message"})
+
+            // PUT request
+            http_request({url: "https://api.example.com/users/123", method: "PUT", json: {"name": "John Updated", "age": 31}})
+
+            // PATCH request
+            http_request({url: "https://api.example.com/users/123", method: "PATCH", json: {"age": 31, "email": "new@example.com"}})
+
+            // DELETE request
+            http_request({url: "https://api.example.com/users/123", method: "DELETE"})
+
+            // Request with custom headers
+            http_request({url: "https://api.example.com/secure", method: "POST", headers: {"Authorization": "Bearer token"}, json: {"key": "value"}})
         """
-        return mcp_http_request("GET", url, query=query, headers=headers, user_agent=ua, force_user_agnet=ua_force)
-
-    @mcp.tool()
-    def http_post(
-        url: str,
-        *,
-        query: Optional[Dict[str, str | int | float]] = None,
-        headers: Optional[Dict[str, str]] = None,
-        data: Optional[str] = None,
-        json: Optional[Any] = None,
-    ) -> str:
-        """Execute an HTTP POST request.
-
-        Sends a POST request to the specified URL with optional parameters and request body.
-
-        Args:
-            url (str): Target URL for the POST request.
-            query (Optional[Dict[str, str | int | float]], optional): Query parameters to append to the URL.
-                Values are automatically converted to strings. Example: {'key1': 'value1', 'key2': 2}
-                becomes "key1=value1&key2=2" appended to the URL.
-            headers (Optional[Dict[str, str]], optional): Custom HTTP request headers.
-            data (Optional[str], optional): Text data to send in the request body. Cannot be used with 'json'.
-            json (Optional[Any], optional): Data to serialize as JSON and send in the request body. Cannot be used with 'data'.
-
-        Returns:
-            str: Complete HTTP response including status line, headers, and body.
-        """
-        return mcp_http_request("POST", url, query=query, data=data, json=json, headers=headers, user_agent=ua, force_user_agnet=ua_force)
-
-    @mcp.tool()
-    def http_put(
-        url: str,
-        *,
-        query: Optional[Dict[str, str | int | float]] = None,
-        headers: Optional[Dict[str, str]] = None,
-        data: Optional[str] = None,
-        json: Optional[Any] = None,
-    ) -> str:
-        """Execute an HTTP PUT request.
-
-        Sends a PUT request to the specified URL with optional parameters and request body.
-
-        Args:
-            url (str): Target URL for the PUT request.
-            query (Optional[Dict[str, str | int | float]], optional): Query parameters to append to the URL.
-                Values are automatically converted to strings. Example: {'key1': 'value1', 'key2': 2}
-                becomes "key1=value1&key2=2" appended to the URL.
-            headers (Optional[Dict[str, str]], optional): Custom HTTP request headers.
-            data (Optional[str], optional): Text data to send in the request body. Cannot be used with 'json'.
-            json (Optional[Any], optional): Data to serialize as JSON and send in the request body. Cannot be used with 'data'.
-
-        Returns:
-            str: Complete HTTP response including status line, headers, and body.
-        """
-        return mcp_http_request("PUT", url, query=query, data=data, json=json, headers=headers, user_agent=ua, force_user_agnet=ua_force)
-
-    @mcp.tool()
-    def http_patch(
-        url: str,
-        *,
-        query: Optional[Dict[str, str | int | float]] = None,
-        headers: Optional[Dict[str, str]] = None,
-        data: Optional[str] = None,
-        json: Optional[Any] = None,
-    ) -> str:
-        """Execute an HTTP PATCH request.
-
-        Sends a PATCH request to the specified URL with optional parameters and request body.
-
-        Args:
-            url (str): Target URL for the PATCH request.
-            query (Optional[Dict[str, str | int | float]], optional): Query parameters to append to the URL.
-                Values are automatically converted to strings. Example: {'key1': 'value1', 'key2': 2}
-                becomes "key1=value1&key2=2" appended to the URL.
-            headers (Optional[Dict[str, str]], optional): Custom HTTP request headers.
-            data (Optional[str], optional): Text data to send in the request body. Cannot be used with 'json'.
-            json (Optional[Any], optional): Data to serialize as JSON and send in the request body. Cannot be used with 'data'.
-
-        Returns:
-            str: Complete HTTP response including status line, headers, and body.
-        """
-        return mcp_http_request("PATCH", url, query=query, data=data, json=json, headers=headers, user_agent=ua, force_user_agnet=ua_force)
-
-    @mcp.tool()
-    def http_delete(
-        url: str,
-        *,
-        query: Optional[Dict[str, str | int | float]] = None,
-        headers: Optional[Dict[str, str]] = None,
-        data: Optional[str] = None,
-        json: Optional[Any] = None,
-    ) -> str:
-        """Execute an HTTP DELETE request.
-
-        Sends a DELETE request to the specified URL with optional parameters and request body.
-
-        Args:
-            url (str): Target URL for the DELETE request.
-            query (Optional[Dict[str, str | int | float]], optional): Query parameters to append to the URL.
-                Values are automatically converted to strings. Example: {'key1': 'value1', 'key2': 2}
-                becomes "key1=value1&key2=2" appended to the URL.
-            headers (Optional[Dict[str, str]], optional): Custom HTTP request headers.
-            data (Optional[str], optional): Text data to send in the request body. Cannot be used with 'json'.
-            json (Optional[Any], optional): Data to serialize as JSON and send in the request body. Cannot be used with 'data'.
-
-        Returns:
-            str: Complete HTTP response including status line, headers, and body.
-        """
-        return mcp_http_request("DELETE", url, query=query, data=data, json=json, headers=headers, user_agent=ua, force_user_agnet=ua_force)
+        return mcp_http_request(method, url, query=query, data=data, json=json, headers=headers, user_agent=ua, force_user_agnet=ua_force)
 
     return mcp

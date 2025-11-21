@@ -34,12 +34,12 @@ class Response:
 
     @property
     def content_type(self) -> str:
-        if self._content_type is  None:
+        if self._content_type is None:
             for k, v in self.headers:
                 if k.lower() == "content-type":
                     self._content_type = v
-                
-            if self._content_type is  None:
+
+            if self._content_type is None:
                 self._content_type = "application/octet-stream"
 
         return self._content_type
@@ -177,6 +177,7 @@ def http_request(
 def format_response_result(
     response: Response,
     *,
+    format_status: bool | None = None,
     format_headers: bool | None = None,
     return_content: Literal["raw", "basic_clean", "strict_clean", "markdown"] = "raw",
 ) -> str:
@@ -218,12 +219,14 @@ def format_response_result(
 
     strs = []
 
-    strs.append(f"{http_version} {status} {reason}\r\n")
+    if format_status:
+        strs.append(f"{http_version} {status} {reason}\r\n")
     if format_headers:
         response_header_str = "\r\n".join(f"{k}: {v}" for k, v in headers)
         strs.append(response_header_str)
-    strs.append("\r\n\r\n")
-    strs.append(content + "\r\n")
+    if len(strs) > 0:
+        strs.append("\r\n\r\n")
+    strs.append(content)
 
     return "\r\n".join(strs)
 
@@ -264,6 +267,7 @@ def mcp_http_request(
     headers: Optional[dict] = None,
     user_agent: Optional[str] = None,
     force_user_agnet: Optional[bool] = None,
+    format_status: bool = True,
     format_headers: bool = True,
     return_content: Literal['raw', 'basic_clean', 'strict_clean', 'markdown'] = "raw",
 ) -> str:
@@ -288,6 +292,11 @@ def mcp_http_request(
             json_=json
         )
 
-        return format_response_result(response, format_headers=format_headers, return_content=return_content)
+        return format_response_result(
+            response,
+            format_status=format_status,
+            format_headers=format_headers,
+            return_content=return_content
+        )
     except Exception as e:
         return format_error_result(e)
