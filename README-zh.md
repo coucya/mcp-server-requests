@@ -9,6 +9,7 @@
 - 支持随机 User-Agent 头
 - 支持在 HTTP 请求中自定义请求头
 - 支持完整的 HTTP 方法（GET、POST、PUT、DELETE、PATCH）
+- 支持将 web 页面内容写入文件
 - LLM 可获取完整的 HTTP 响应头信息
 
 ## 安装
@@ -77,9 +78,12 @@ python -m mcp_server_requests
 
 - `--use-root` 启用相对于工作区根目录的文件操作：
   - **前提条件**：需要支持 `root` 能力的 MCP Client
-  - 启用时：文件路径相对于工作区根目录
-  - 禁用时：文件路径必须为绝对路径
-  - `--allow-external-file-access`：控制是否允许在工作区外操作文件（仅能与 --use-root 一起使用）
+  - 启用时：`fetch_to_file` 允许接受绝对路径或相对路径，相对路径相对于工作区根目录
+  - 禁用时：`fetch_to_file` 必须使用绝对路径，文件保存到指定的绝对路径位置
+- `--allow-external-file-access`：控制是否允许在工作区外操作文件（仅能与 `--use-root` 一起使用）
+  - **前提条件**：需要开启 `--use-root`，如果没有开启 `--use-root`，这该选项不生效
+  - 启用时：`fetch_to_file` 可以操作工作区目录外的文件。
+  - 禁用时：`fetch_to_file` 只能在工作区目录内部操作文件，即使提供的是绝对路径，也不能操作工作区外的文件。
 
 ---
 
@@ -115,7 +119,7 @@ python -m mcp_server_requests fetch <URL> [--return-content {raw,basic_clean,str
   - `"strict_clean"`：严格清理，移除非显示标签和大部分 HTML 属性，仅保留必要结构
   - `"markdown"`：将 HTML 内容转换为清洁的 Markdown 格式
 
-**返回值：** 字符串 - 根据指定格式处理后的内容
+**返回值：** 根据指定格式处理后的 web 内容
 
 ---
 
@@ -129,13 +133,12 @@ python -m mcp_server_requests fetch <URL> [--return-content {raw,basic_clean,str
   - 禁用 `--use-root` 时：必须为**绝对路径**
 - **return_content**（可选，枚举）：内容处理格式，默认为 "markdown"，选项同 fetch 工具
 
-**安全特性：**
+**特性：**
 - 自动创建嵌套目录的父目录
 - 所有文件使用 UTF-8 编码保存
-- 路径安全验证，防止写入受保护的系统目录
 - 启用 `--use-root` 时可配合 `--allow-external-file-access` 控制文件访问范围
 
-**返回值：** 字符串 - 操作结果或错误信息
+**返回值：** 操作结果或错误信息
 
 ---
 
@@ -151,12 +154,7 @@ python -m mcp_server_requests fetch <URL> [--return-content {raw,basic_clean,str
 - **data**（可选，字符串）：文本格式的请求体数据，与 json 参数互斥
 - **json**（可选，任意类型）：JSON 格式的请求体数据，与 data 参数互斥
 
-**参数约束：**
-- `data` 和 `json` 参数不能同时使用
-- 使用 `json` 参数时自动设置 `Content-Type: application/json`
-- 使用 `data` 参数时建议手动设置适当的 `Content-Type`
-
-**返回值：** 字符串 - 包含完整的 HTTP 响应（状态行、响应头、响应体）
+**返回值：** 包含完整的 HTTP 响应（状态行、响应头、响应体）
 
 ---
 

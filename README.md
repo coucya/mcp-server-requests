@@ -13,6 +13,7 @@ An MCP server that provides HTTP request capabilities, enabling LLMs to fetch an
 - Supports random User-Agent headers
 - Supports custom request headers in HTTP requests
 - Supports full HTTP methods (GET, POST, PUT, DELETE, PATCH)
+- Supports writing web page content to files
 - LLMs can access complete HTTP response header information
 
 ## Installation
@@ -81,9 +82,12 @@ python -m mcp_server_requests
 
 - `--use-root` enables file operations relative to workspace root:
   - **Prerequisite**: Requires MCP Client with `root` capability support
-  - When enabled: File paths are relative to workspace root
-  - When disabled: File paths must be absolute paths
-  - `--allow-external-file-access`: Controls whether files outside workspace are allowed (only usable with --use-root)
+  - When enabled: `fetch_to_file` allows absolute paths or relative paths, relative paths are relative to workspace root
+  - When disabled: `fetch_to_file` must use absolute paths, files are saved to specified absolute path locations
+- `--allow-external-file-access`: Controls whether file operations outside workspace are allowed (only usable with --use-root)
+  - **Prerequisite**: Requires `--use-root` to be enabled, this option has no effect if `--use-root` is not enabled
+  - When enabled: `fetch_to_file` can operate on files outside the workspace directory
+  - When disabled: `fetch_to_file` can only operate on files within the workspace directory, even if absolute paths are provided, files outside the workspace cannot be operated on
 
 ---
 
@@ -133,10 +137,9 @@ Fetch content from the specified URL and save it to a file.
   - When `--use-root` is disabled: Must be an **absolute path**
 - **return_content** (optional, enum): Content processing format, defaults to "markdown", same options as fetch tool
 
-**Security Features:**
+**Features:**
 - Automatically creates parent directories for nested paths
 - All files saved with UTF-8 encoding
-- Path security validation to prevent writing to protected system directories
 - When `--use-root` is enabled, can work with `--allow-external-file-access` to control file access scope
 
 **Returns:** String - Operation result or error message
