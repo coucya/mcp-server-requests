@@ -128,22 +128,19 @@ python -m mcp_server_requests fetch https://example.com
      - **return_content**（可选）：处理格式（与 fetch 工具相同）
    - 功能特性：
      - 自动为嵌套路径创建目录
-     - 文件路径安全验证
      - 所有保存的文件使用 UTF-8 编码
 
 3. **http_request** - 使用任意方法执行 HTTP 请求
    - 参数：
      - **url**（必填）：目标 URL
-     - **method**（可选）：HTTP 方法（'GET'、'POST'、'PUT'、'PATCH'、'DELETE'）
+     - **method**（可选）：HTTP 方法（'GET'、'POST'、'PUT'、'PATCH'、'DELETE'），默认为 `GET`
      - **query**（可选）：查询参数键值对
      - **headers**（可选）：自定义请求头
      - **data**（可选）：请求体数据（文本）
      - **json**（可选）：请求体数据（JSON）
-       - **data** 和 **json** 不能同时使用
+     - **data** 和 **json** 不能同时使用
    - 功能特性：
      - 完整的 HTTP 响应，包括状态、头部和正文
-     - 查询参数自动 URL 编码
-     - JSON 数据自动设置 Content-Type 头
    - 注意：LLM 可能在 headers 中指定 User-Agent，是否采用由 `--force-user-agent` 控制
 
 **注意**：单独的 HTTP 方法工具（http_get、http_post、http_put、http_patch、http_delete）已被移除，并替换为统一的 **http_request** 工具。

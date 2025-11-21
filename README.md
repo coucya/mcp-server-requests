@@ -132,22 +132,19 @@ python -m mcp_server_requests fetch https://example.com
      - **return_content** (optional): Processing format (same as fetch tool)
    - Features:
      - Automatic directory creation for nested paths
-     - File path validation for security
      - UTF-8 encoding for all saved files
 
 3. **http_request** - Execute HTTP request with any method
    - Parameters:
      - **url** (required): Target URL
-     - **method** (optional): HTTP method ('GET', 'POST', 'PUT', 'PATCH', 'DELETE')
+     - **method** (optional): HTTP method ('GET', 'POST', 'PUT', 'PATCH', 'DELETE'), default to `GET`
      - **query** (optional): Query parameter key-value pairs
      - **headers** (optional): Custom request headers
      - **data** (optional): Request body data (text)
      - **json** (optional): Request body data (JSON)
-       - **data** and **json** cannot be used together
+     - **data** and **json** cannot be used together
    - Features:
      - Complete HTTP response including status, headers, and body
-     - Automatic URL encoding for query parameters
-     - Content-Type header auto-set for JSON data
    - Note: LLM may specify User-Agent in headers, whether to use it is controlled by `--force-user-agent`
 
 **Note**: Individual HTTP method tools (http_get, http_post, http_put, http_patch, http_delete) have been removed and replaced by the unified **http_request** tool.
