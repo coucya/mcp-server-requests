@@ -52,7 +52,7 @@ python -m mcp_server_requests
 - `--random-user-agent [browser=xxx;os=xxx]`：使用随机生成的 User-Agent
 - `--force-user-agent`：强制使用命令行指定的 User-Agent，忽略 LLM 提供的 UA
 - `--list-os-and-browser`：列出可用于生成随机 User-Agent 的浏览器和操作系统
-- `--use-root`：启用工作区根目录支持的文件操作（需要支持 root 能力的 MCP Client）
+- `--use-root`：启用工作区根目录支持的文件操作（需要支持 `root` 能力的 MCP Client）
 - `--allow-external-file-access`：允许在工作区外进行文件操作（仅与 --use-root 一起使用）
 
 #### 选项说明
@@ -69,13 +69,14 @@ python -m mcp_server_requests
 - 使用 `--list-os-and-browser` 查看可用于 `--random-user-agent` 的浏览器和操作系统列表。
 
 - `--force-user-agent` 选项控制 User-Agent 的优先级：
-  - 启用时：优先使用命令行指定的 User-Agent（通过 `--user-agent` 或 `--random-user-agent`），忽略 LLM 提供的 UA
-  - 禁用时：
-    - 如果 LLM 提供了 User-Agent，则使用 LLM 提供的
-    - 否则使用命令行指定的 User-Agent
+- 当 `--force-user-agent` 启用时：强制使用命令行指定的 User-Agent（通过 `--user-agent` 或 `--random-user-agent`）
+- 当 `--force-user-agent` 禁用时：
+  - 如果 LLM 在 `headers` 中提供 User-Agent，则使用 LLM 提供的
+  - 否则使用命令行指定的 User-Agent
+- 如果都没有指定，使用默认 User-Agent：`Mozilla/5.0 (compatible; mcp-server-requests/{version})`
 
 - `--use-root` 启用相对于工作区根目录的文件操作：
-  - **前提条件**：需要支持 root 能力的 MCP Client
+  - **前提条件**：需要支持 `root` 能力的 MCP Client
   - 启用时：文件路径相对于工作区根目录
   - 禁用时：文件路径必须为绝对路径
   - `--allow-external-file-access`：控制是否允许在工作区外操作文件（仅能与 --use-root 一起使用）
@@ -84,66 +85,82 @@ python -m mcp_server_requests
 
 ### 1. **fetch - 获取网页内容**
 
-fetch 子命令与 fetch 工具的功能等价，可以演示 fetch 的功能。
+fetch 子命令与 MCP 工具 `fetch` 的功能等价，用于演示 fetch 功能。
 
 ```bash
 python -m mcp_server_requests fetch <URL> [--return-content {raw,basic_clean,strict_clean,markdown}]
 ```
 
-选项：
+**选项说明：**
 - `--return-content`：返回内容类型（默认：markdown）
-  - **raw**：返回未经处理的原始 HTML 内容
-  - **basic_clean**：基础清理，移除 script、style 等非显示性标签
-  - **strict_clean**：严格清理，移除非显示性标签并清除大部分 HTML 属性
+  - **raw**：返回未经处理的原始 HTML 内容（包含响应头信息）
+  - **basic_clean**：基础清理，移除 script、style、meta 等非显示性标签，保留结构
+  - **strict_clean**：严格清理，移除非显示性标签并清除大部分 HTML 属性，仅保留必要结构
   - **markdown**：将 HTML 转换为简洁的 Markdown 格式
-
-示例：
-```
-python -m mcp_server_requests fetch https://example.com
-```
-
----
 
 ---
 
 ## 功能
 
-### 可用工具
+### MCP 工具详细说明
 
-1. **fetch** - 获取网页内容
-   - 参数：
-     - **url**（必填）：目标 URL
-     - **return_content**（可选）：返回内容类型（'raw'、'basic_clean'、'strict_clean'、'markdown'）
-       - **raw**：返回原始 HTML 内容
-       - **basic_clean**：返回过滤后的 HTML 内容，过滤掉所有不会显示的标签，如 script、style 等
-       - **strict_clean**：返回过滤后的 HTML 内容，过滤掉所有不会显示的标签，如 script、style 等，并且会删除大部分无用的 HTML 属性
-       - **markdown**：HTML 转换为 Markdown 后返回
+#### 1. **fetch** - 获取网页内容
+获取指定 URL 的内容并按指定格式返回。
 
-2. **fetch_to_file** - 获取网页内容并保存到文件
-   - 参数：
-     - **url**（必填）：目标 URL
-     - **file_path**（必填）：保存内容的文件路径
-       - 当启用 `--use-root` 时：相对于工作区根目录的路径
-       - 禁用时：必须为绝对文件路径
-     - **return_content**（可选）：处理格式（与 fetch 工具相同）
-   - 功能特性：
-     - 自动为嵌套路径创建目录
-     - 所有保存的文件使用 UTF-8 编码
+**参数：**
+- **url**（必填，字符串）：目标 URL，支持 HTTP/HTTPS 协议
+- **return_content**（可选，枚举）：内容处理格式，默认为 "markdown"
+  - `"raw"`：返回原始 HTML 内容，包含完整的 HTTP 响应头
+  - `"basic_clean"`：基础清理，移除 script、style、meta 等非显示标签，保留 HTML 结构
+  - `"strict_clean"`：严格清理，移除非显示标签和大部分 HTML 属性，仅保留必要结构
+  - `"markdown"`：将 HTML 内容转换为清洁的 Markdown 格式
 
-3. **http_request** - 使用任意方法执行 HTTP 请求
-   - 参数：
-     - **url**（必填）：目标 URL
-     - **method**（可选）：HTTP 方法（'GET'、'POST'、'PUT'、'PATCH'、'DELETE'），默认为 `GET`
-     - **query**（可选）：查询参数键值对
-     - **headers**（可选）：自定义请求头
-     - **data**（可选）：请求体数据（文本）
-     - **json**（可选）：请求体数据（JSON）
-     - **data** 和 **json** 不能同时使用
-   - 功能特性：
-     - 完整的 HTTP 响应，包括状态、头部和正文
-   - 注意：LLM 可能在 headers 中指定 User-Agent，是否采用由 `--force-user-agent` 控制
+**返回值：** 字符串 - 根据指定格式处理后的内容
 
-**注意**：单独的 HTTP 方法工具（http_get、http_post、http_put、http_patch、http_delete）已被移除，并替换为统一的 **http_request** 工具。
+---
+
+#### 2. **fetch_to_file** - 获取网页内容并保存到文件
+获取指定 URL 的内容并保存到文件。
+
+**参数：**
+- **url**（必填，字符串）：目标 URL
+- **file_path**（必填，字符串）：文件保存路径
+  - 启用 `--use-root` 时：必须为**相对路径**（相对于工作区根目录）
+  - 禁用 `--use-root` 时：必须为**绝对路径**
+- **return_content**（可选，枚举）：内容处理格式，默认为 "markdown"，选项同 fetch 工具
+
+**安全特性：**
+- 自动创建嵌套目录的父目录
+- 所有文件使用 UTF-8 编码保存
+- 路径安全验证，防止写入受保护的系统目录
+- 启用 `--use-root` 时可配合 `--allow-external-file-access` 控制文件访问范围
+
+**返回值：** 字符串 - 操作结果或错误信息
+
+---
+
+#### 3. **http_request** - 通用 HTTP 请求工具
+使用任意 HTTP 方法发送请求并获取完整响应。
+
+**参数：**
+- **url**（必填，字符串）：目标 URL
+- **method**（可选，枚举）：HTTP 方法，默认为 "GET"
+  - `"GET"`、`"POST"`、`"PUT"`、`"PATCH"`、`"DELETE"`
+- **query**（可选，对象）：URL 查询参数，键值对形式，自动 URL 编码
+- **headers**（可选，对象）：自定义 HTTP 请求头
+- **data**（可选，字符串）：文本格式的请求体数据，与 json 参数互斥
+- **json**（可选，任意类型）：JSON 格式的请求体数据，与 data 参数互斥
+
+**参数约束：**
+- `data` 和 `json` 参数不能同时使用
+- 使用 `json` 参数时自动设置 `Content-Type: application/json`
+- 使用 `data` 参数时建议手动设置适当的 `Content-Type`
+
+**返回值：** 字符串 - 包含完整的 HTTP 响应（状态行、响应头、响应体）
+
+---
+
+**注意**：之前版本的独立 HTTP 方法工具（http_get、http_post、http_put、http_patch、http_delete）已被移除，统一使用 **http_request** 工具。
 
 ## License
 MIT

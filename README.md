@@ -56,7 +56,7 @@ python -m mcp_server_requests
 - `--random-user-agent [browser=xxx;os=xxx]`: Use randomly generated User-Agent
 - `--force-user-agent`: Force using command line specified User-Agent, ignoring LLM provided UA
 - `--list-os-and-browser`: List available browsers and OS for random User-Agent generation
-- `--use-root`: Enable workspace root support for file operations (requires MCP Client with root capability support)
+- `--use-root`: Enable workspace root support for file operations (requires MCP Client with `root` capability support)
 - `--allow-external-file-access`: Allow file operations outside workspace (only with --use-root)
 
 #### Option Details
@@ -72,14 +72,15 @@ python -m mcp_server_requests
 
 - Use `--list-os-and-browser` to view available browsers and OS for `--random-user-agent`.
 
-- `--force-user-agent` controls User-Agent priority:
-  - When enabled: Prioritize command line specified User-Agent (via `--user-agent` or `--random-user-agent`), ignoring LLM provided UA
-  - When disabled:
-    - If LLM provides User-Agent, use that
-    - Otherwise use command line specified User-Agent
+- `--force-user-agent` option controls User-Agent priority:
+  - When `--force-user-agent` is enabled: Force using command-line specified User-Agent (via `--user-agent` or `--random-user-agent`)
+  - When `--force-user-agent` is disabled:
+    - If LLM provides User-Agent in `headers`, use the LLM-provided one
+    - Otherwise use command-line specified User-Agent
+  - If none specified, use default User-Agent: `Mozilla/5.0 (compatible; mcp-server-requests/{version})`
 
 - `--use-root` enables file operations relative to workspace root:
-  - **Prerequisite**: Requires MCP Client with root capability support
+  - **Prerequisite**: Requires MCP Client with `root` capability support
   - When enabled: File paths are relative to workspace root
   - When disabled: File paths must be absolute paths
   - `--allow-external-file-access`: Controls whether files outside workspace are allowed (only usable with --use-root)
@@ -88,64 +89,80 @@ python -m mcp_server_requests
 
 ### 1. **fetch - Fetch Web Content**
 
-The fetch subcommand is equivalent to the fetch tool functionality, demonstrating fetch capabilities.
+The fetch subcommand is equivalent to the MCP `fetch` tool functionality, used to demonstrate fetch capabilities.
 
 ```bash
 python -m mcp_server_requests fetch <URL> [--return-content {raw,basic_clean,strict_clean,markdown}]
 ```
 
-Options:
+**Options:**
 - `--return-content`: Return content type (default: markdown)
-  - **raw**: Return raw unprocessed HTML content
-  - **basic_clean**: Basic cleanup, removing non-display tags like script, style
-  - **strict_clean**: Strict cleanup, removing non-display tags and most HTML attributes
+  - **raw**: Return raw unprocessed HTML content (includes response headers)
+  - **basic_clean**: Basic cleanup, removing non-display tags (script, style, meta, etc.) while preserving structure
+  - **strict_clean**: Strict cleanup, removing non-display tags and most HTML attributes, keeping only essential structure
   - **markdown**: Convert HTML to clean Markdown format
-
-Example:
-```
-python -m mcp_server_requests fetch https://example.com
-```
-
----
 
 ---
 
 ## Functionality
 
-### Available Tools
+### MCP Tool Details
 
-1. **fetch** - Fetch web content
-   - Parameters:
-     - **url** (required): Target URL
-     - **return_content** (optional): Return content type ('raw', 'basic_clean', 'strict_clean', 'markdown')
-       - **raw**: Return raw HTML content
-       - **basic_clean**: Return filtered HTML content, removing non-display tags like script, style
-       - **strict_clean**: Return filtered HTML content, removing non-display tags and most useless HTML attributes
-       - **markdown**: Return HTML converted to Markdown
+#### 1. **fetch** - Fetch Web Content
+Fetch content from the specified URL and return it in the specified format.
 
-2. **fetch_to_file** - Fetch web content and save to file
-   - Parameters:
-     - **url** (required): Target URL
-     - **file_path** (required): File path where content will be saved
-       - When `--use-root` is enabled: Relative path to workspace root
-       - When disabled: Absolute file path
-     - **return_content** (optional): Processing format (same as fetch tool)
-   - Features:
-     - Automatic directory creation for nested paths
-     - UTF-8 encoding for all saved files
+**Parameters:**
+- **url** (required, string): Target URL, supports HTTP/HTTPS protocols
+- **return_content** (optional, enum): Content processing format, defaults to "markdown"
+  - `"raw"`: Return raw HTML content with complete HTTP response headers
+  - `"basic_clean"`: Basic cleanup, removing non-display tags (script, style, meta, etc.) while preserving HTML structure
+  - `"strict_clean"`: Strict cleanup, removing non-display tags and most HTML attributes, keeping only essential structure
+  - `"markdown"`: Convert HTML content to clean Markdown format
 
-3. **http_request** - Execute HTTP request with any method
-   - Parameters:
-     - **url** (required): Target URL
-     - **method** (optional): HTTP method ('GET', 'POST', 'PUT', 'PATCH', 'DELETE'), default to `GET`
-     - **query** (optional): Query parameter key-value pairs
-     - **headers** (optional): Custom request headers
-     - **data** (optional): Request body data (text)
-     - **json** (optional): Request body data (JSON)
-     - **data** and **json** cannot be used together
-   - Features:
-     - Complete HTTP response including status, headers, and body
-   - Note: LLM may specify User-Agent in headers, whether to use it is controlled by `--force-user-agent`
+**Returns:** String - Content processed according to the specified format
+
+---
+
+#### 2. **fetch_to_file** - Fetch Web Content and Save to File
+Fetch content from the specified URL and save it to a file.
+
+**Parameters:**
+- **url** (required, string): Target URL
+- **file_path** (required, string): File save path
+  - When `--use-root` is enabled: Must be a **relative path** (relative to workspace root)
+  - When `--use-root` is disabled: Must be an **absolute path**
+- **return_content** (optional, enum): Content processing format, defaults to "markdown", same options as fetch tool
+
+**Security Features:**
+- Automatically creates parent directories for nested paths
+- All files saved with UTF-8 encoding
+- Path security validation to prevent writing to protected system directories
+- When `--use-root` is enabled, can work with `--allow-external-file-access` to control file access scope
+
+**Returns:** String - Operation result or error message
+
+---
+
+#### 3. **http_request** - Generic HTTP Request Tool
+Send HTTP requests using any method and get complete responses.
+
+**Parameters:**
+- **url** (required, string): Target URL
+- **method** (optional, enum): HTTP method, defaults to "GET"
+  - `"GET"`, `"POST"`, `"PUT"`, `"PATCH"`, `"DELETE"`
+- **query** (optional, object): URL query parameters as key-value pairs, automatically URL-encoded
+- **headers** (optional, object): Custom HTTP request headers
+- **data** (optional, string): Text format request body data, mutually exclusive with json parameter
+- **json** (optional, any type): JSON format request body data, mutually exclusive with data parameter
+
+**Parameter Constraints:**
+- `data` and `json` parameters cannot be used together
+- When using `json` parameter, `Content-Type: application/json` is automatically set
+- When using `data` parameter, it's recommended to manually set appropriate `Content-Type`
+
+**Returns:** String - Complete HTTP response (status line, response headers, and response body)
+
+---
 
 **Note**: Individual HTTP method tools (http_get, http_post, http_put, http_patch, http_delete) have been removed and replaced by the unified **http_request** tool.
 
