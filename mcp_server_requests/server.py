@@ -30,7 +30,7 @@ async def _validate_file_path(
     file_path: str,
     ctx: Context | None = None,
     use_workspace_root: bool = False,
-    allow_outside_of_workspace: bool = False
+    allow_external_file_access: bool = False
 ) -> tuple[str, str]:
     """Validate file path and return (status, normalized_path).
 
@@ -51,7 +51,7 @@ async def _validate_file_path(
         if not os.path.isabs(file_path):
             file_path = os.path.normpath(os.path.join(root, file_path))
 
-        if allow_outside_of_workspace:
+        if allow_external_file_access:
             rel = os.path.relpath(file_path, root)
             if rel.startswith(".."):
                 return f"Error: Access denied - path '{file_path}' is outside workspace root '{root}'", ""
@@ -88,8 +88,8 @@ def create_mcp_server(
     ua_os: str | None = None,
     ua_browser: str | None = None,
     ua_force: bool | None = None,
-    use_workspace_root: bool | None = None,
-    allow_outside_of_workspace: bool | None = None
+    use_root: bool | None = None,
+    allow_external_file_access: bool | None = None
 ) -> FastMCP:
 
     mcp = FastMCP("Requests", log_level="ERROR")
@@ -124,7 +124,7 @@ def create_mcp_server(
         """
         return mcp_http_request("GET", url, return_content=return_content, user_agent=ua, force_user_agnet=ua_force, format_headers=False)
 
-    if use_workspace_root:
+    if use_root:
         @mcp.tool()
         async def fetch_to_file(
             url: Annotated[str, "(require) The URL to fetch content from"],
@@ -168,7 +168,7 @@ def create_mcp_server(
                 status, validated_path = await _validate_file_path(
                     file_path, ctx,
                     use_workspace_root=True,
-                    allow_outside_of_workspace=not bool(allow_outside_of_workspace)
+                    allow_external_file_access=bool(allow_external_file_access)
                 )
                 if status != "success":
                     return status
@@ -244,7 +244,7 @@ def create_mcp_server(
                 status, validated_path = await _validate_file_path(
                     file_path, ctx,
                     use_workspace_root=False,
-                    allow_outside_of_workspace=False
+                    allow_external_file_access=False
                 )
                 if status != "success":
                     return status

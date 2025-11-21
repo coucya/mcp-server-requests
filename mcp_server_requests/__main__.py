@@ -14,17 +14,23 @@ from .request import mcp_http_request
 @click.option("--random-user-agent", is_flag=True, flag_value=True, default=None, help="Use a random user agent,")
 @click.option("--force-user-agent", is_flag=True, help="Force the use of specified or randomly generated UA, ignoring UA provided by the model")
 @click.option('--list-os-and-browser', is_flag=True, help='List available browsers and operating systems for UA selection')
+@click.option('--use-root', is_flag=True, help='Enable workspace root support for file operations (requires MCP Client with root capability support)')
+@click.option('--allow-external-file-access', is_flag=True, help='Allow file operations outside workspace (only with --use-root)')
 def main(
     context: click.Context,
     user_agent: Optional[str],
     random_user_agent: Optional[str],
     force_user_agent: Optional[bool],
-    list_os_and_browser: bool
+    list_os_and_browser: bool,
+    use_root: bool,
+    allow_external_file_access: bool
 ):
     if list_os_and_browser and context.invoked_subcommand:
         raise ValueError("Cannot use --list-os-and-browser with subcommand.")
     if user_agent and random_user_agent:
         raise ValueError("Cannot use both --user-agent and --random-user-agent.")
+    if allow_external_file_access and not use_root:
+        raise ValueError("--allow-external-file-access requires --use-root to be enabled.")
 
     if list_os_and_browser:
         click.echo("Available browsers:")
@@ -53,6 +59,8 @@ def main(
             ua_os=ua_os,
             ua_browser=ua_browser,
             ua_force=force_user_agent,
+            use_root=use_root,
+            allow_external_file_access=allow_external_file_access,
         )
         mcp.run()
 

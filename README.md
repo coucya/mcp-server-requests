@@ -56,8 +56,8 @@ python -m mcp_server_requests
 - `--random-user-agent [browser=xxx;os=xxx]`: Use randomly generated User-Agent
 - `--force-user-agent`: Force using command line specified User-Agent, ignoring LLM provided UA
 - `--list-os-and-browser`: List available browsers and OS for random User-Agent generation
-- `--use-workspace-root`: Enable workspace root support for file operations (requires MCP Client with root capability support)
-- `--allow-outside-of-workspace`: Allow file operations outside workspace (only with --use-workspace-root)
+- `--use-root`: Enable workspace root support for file operations (requires MCP Client with root capability support)
+- `--allow-external-file-access`: Allow file operations outside workspace (only with --use-root)
 
 #### Option Details
 - `--user-agent` and `--random-user-agent` are mutually exclusive and cannot be used together
@@ -78,11 +78,11 @@ python -m mcp_server_requests
     - If LLM provides User-Agent, use that
     - Otherwise use command line specified User-Agent
 
-- `--use-workspace-root` enables file operations relative to workspace root:
+- `--use-root` enables file operations relative to workspace root:
   - **Prerequisite**: Requires MCP Client with root capability support
   - When enabled: File paths are relative to workspace root
   - When disabled: File paths must be absolute paths
-  - `--allow-outside-of-workspace`: Controls whether files outside workspace are allowed (only usable with --use-workspace-root)
+  - `--allow-external-file-access`: Controls whether files outside workspace are allowed (only usable with --use-root)
 
 ---
 
@@ -127,7 +127,7 @@ python -m mcp_server_requests fetch https://example.com
    - Parameters:
      - **url** (required): Target URL
      - **file_path** (required): File path where content will be saved
-       - When `--use-workspace-root` is enabled: Relative path to workspace root
+       - When `--use-root` is enabled: Relative path to workspace root
        - When disabled: Absolute file path
      - **return_content** (optional): Processing format (same as fetch tool)
    - Features:
