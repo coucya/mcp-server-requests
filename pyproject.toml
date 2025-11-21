@@ -7,7 +7,8 @@ license = { text = "MIT" }
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
-    "mcp",
+    "fastmcp>=2.0.0",
+    "click",
     "markdownify",
     "beautifulsoup4"
 ]
