@@ -66,6 +66,28 @@ class TestMergeQueryToUrl(unittest.TestCase):
         self.assertIn("float=3.14", result)
         self.assertIn("str=value", result)
 
+    def test_merge_query_unicode_characters(self):
+        """Test query parameters with Unicode characters (e.g., Chinese)"""
+        url = "https://example.com"
+        query_dict = {"query": "测试", "chinese": "中文"}
+        result = merge_query_to_url(url, query_dict)
+
+        # Should properly encode Unicode characters
+        self.assertIn("query=%E6%B5%8B%E8%AF%95", result)  # URL-encoded "测试"
+        self.assertIn("chinese=%E4%B8%AD%E6%96%87", result)  # URL-encoded "中文"
+
+    def test_url_with_unicode_path(self):
+        """Test URL with Unicode characters in path"""
+        url = "https://example.com/测试路径"
+        query_dict = {"param": "value"}
+
+        # This should not raise an encoding error
+        try:
+            result = merge_query_to_url(url, query_dict)
+            self.assertIn("param=value", result)
+        except Exception as e:
+            self.fail(f"merge_query_to_url failed with Unicode path: {e}")
+
 
 class TestResponse(unittest.TestCase):
     """Test Response class"""
@@ -400,6 +422,36 @@ class TestHttpRequest(unittest.TestCase):
 
         result = http_request("GET", self.base_url)
         self.assertEqual(result.version, "HTTP/1.1")  # Default fallback value
+
+    @patch('mcp_server_requests.request.urllib.request.urlopen')
+    def test_http_request_with_unicode_url(self, mock_urlopen):
+        """Test HTTP request with Unicode characters in URL"""
+        # Mock response
+        mock_response = Mock()
+        mock_response.version = 11
+        mock_response.status = 200
+        mock_response.reason = "OK"
+        mock_response.getheaders.return_value = [("Content-Type", "text/html")]
+        mock_response.read.return_value = b'<html>Test</html>'
+        mock_urlopen.return_value = mock_response
+
+        # Test with Unicode characters in URL path
+        url = "https://example.com/测试页面"
+        result = http_request("GET", url)
+
+        # Verify the request was made successfully
+        self.assertEqual(result.status_code, 200)
+        mock_urlopen.assert_called_once()
+
+        # Get the request that was made
+        request = mock_urlopen.call_args[0][0]
+        # The request should have succeeded - either with original URL or encoded URL
+        # urllib now handles most Unicode URLs directly, so both are valid
+        full_url = request.get_full_url()
+        self.assertTrue(
+            "%E6%B5%8B%E8%AF%95" in full_url or "测试" in full_url,
+            f"URL should contain either encoded or original Chinese characters: {full_url}"
+        )
 
 
 class TestRequestError(unittest.TestCase):

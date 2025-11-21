@@ -2,12 +2,10 @@ from dataclasses import dataclass
 from typing import Mapping, Optional, Literal, Union
 import json
 
-import urllib
 import urllib.error
-import urllib.parse
 import urllib.request
 import http.client
-from urllib.parse import parse_qsl, urlparse, urlencode, urlunparse
+from urllib.parse import parse_qsl, quote, urlparse, urlencode, urlunparse
 
 from .utils import html_to_markdown, clean_html
 
@@ -68,7 +66,7 @@ def merge_query_to_url(url: str, query_dict: Mapping[str, str | int | float]) ->
             raise ArgumentError(f"invalid value for query parameter {k}: {v}. value must be a string, int, or float.")
     query_single.update(query_dict.items())
 
-    new_query = urlencode(list(query_single))
+    new_query = urlencode(list(query_single), encoding='utf-8')
 
     new_url = urlunparse((
         parsed_url.scheme,
@@ -135,6 +133,7 @@ def http_request(
         url = "https://" + url
 
     try:
+        url = quote(url, safe=";/?:@&=+$,", encoding="utf-8")
         request = urllib.request.Request(url, method=method, headers=headers, data=data_bytes)
         response: http.client.HTTPResponse = urllib.request.urlopen(request)
 
