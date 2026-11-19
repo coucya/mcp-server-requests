@@ -87,8 +87,8 @@ python -m mcp_server_requests
 - `--force-user-agent`：强制使用命令行指定的 User-Agent，忽略 LLM 提供的 UA
 - `--list-os-and-browser`：列出可用于生成随机 User-Agent 的浏览器和操作系统
 - `--enable-fetch-to-file`：启用 `fetch_to_file` 工具（默认关闭）
-- `--workspace PATH`：可写目录，同时作为相对路径的根目录
-- `--writable-dir PATH`：为 `fetch_to_file` 追加额外的可写目录（可重复）
+- `--workspace PATH`：可写目录，同时作为相对路径的根目录。只使用绝对路径，相对路径会被忽略。
+- `--writable-dir PATH`：为 `fetch_to_file` 追加额外的可写目录（可重复）。只使用绝对路径，相对路径会被忽略。
 
 #### 选项说明
 - `--user-agent` 和 `--random-user-agent` 选项互斥，不能同时使用
@@ -116,7 +116,13 @@ python -m mcp_server_requests
   - `--writable-dir` 用于在 `--workspace`之外添加额外的可写目录。
   - `file_path` 可以是绝对路径或相对路径，但解析后的文件必须位于某个可写根内。
   - 可写根必须是目录。目录不存在时，在首次使用工具时自动创建。
-- `/etc`、`C:\Windows` 等系统目录始终禁止写入。
+  - `--workspace` 和 `--writable-dir` 只使用绝对路径，相对路径会被忽略。
+- 不会覆盖已有文件。目标文件已存在时，工具返回错误，不写入任何内容。
+- 写入前会解析符号链接。解析后的最终目标必须位于某个可写根内。
+- HTTP 4xx/5xx 的响应体会像正常响应一样写入文件。
+- `/etc`、`C:\Windows` 等系统目录始终禁止写入。用户级敏感路径也会被拒绝：`~/.ssh`、`~/.aws`、`~/.gnupg`、`~/.config/autostart`、`~/.bashrc`、`~/.zshrc` 等 shell 启动文件，以及 Windows 的启动目录。
+- 不要把 `--workspace` 设为家目录或包含敏感配置文件的目录。可写根只负责把写入限制在配置的目录内，无法让一个范围过大的目录里的每个文件都变安全。
+- `fetch_to_file` 只保存文本内容。非文本响应会返回错误，不会创建文件。
 
 ---
 
@@ -125,7 +131,7 @@ python -m mcp_server_requests
 fetch 子命令与 MCP 工具 `fetch` 的功能等价，用于演示 fetch 功能。
 
 ```bash
-python -m mcp_server_requests fetch <URL> [--return-content {raw,basic_clean,strict_clean,markdown}]
+python -m mcp_server_requests fetch <URL> [--return-content {raw,basic_clean,strict_clean,markdown}] [--timeout SECONDS]
 ```
 
 **选项说明：**
@@ -134,6 +140,7 @@ python -m mcp_server_requests fetch <URL> [--return-content {raw,basic_clean,str
   - **basic_clean**：基础清理，移除 script、style、meta 等非显示性标签，保留结构
   - **strict_clean**：严格清理，移除非显示性标签并清除大部分 HTML 属性，仅保留必要结构
   - **markdown**：将 HTML 转换为简洁的 Markdown 格式
+- `--timeout`：请求超时时间，单位秒（默认：30）
 
 ---
 
@@ -151,6 +158,7 @@ python -m mcp_server_requests fetch <URL> [--return-content {raw,basic_clean,str
   - `"basic_clean"`：基础清理，移除 script、style、meta 等非显示标签，保留 HTML 结构
   - `"strict_clean"`：严格清理，移除非显示标签和大部分 HTML 属性，仅保留必要结构
   - `"markdown"`：将 HTML 内容转换为清洁的 Markdown 格式
+- **timeout**（可选，数字）：请求超时时间，单位秒，默认 30。传 `null` 表示不超时。
 
 **返回值：** 根据指定格式处理后的 web 内容
 
@@ -165,12 +173,16 @@ python -m mcp_server_requests fetch <URL> [--return-content {raw,basic_clean,str
   - 绝对路径必须位于某个可写根内
   - 相对路径以 `--workspace` 为基准，且必须落在某个可写根内
 - **return_content**（可选，枚举）：内容处理格式，默认为 "markdown"，选项同 fetch 工具
+- **timeout**（可选，数字）：请求超时时间，单位秒，默认 30。传 `null` 表示不超时。
 
 **特性：**
 - 默认关闭，需用 `--enable-fetch-to-file` 开启
 - 写入配置的可写根之外的路径会被拒绝
+- 已有文件不会被覆盖
 - 自动创建嵌套目录的父目录
 - 所有文件使用 UTF-8 编码保存
+- HTTP 4xx/5xx 的响应体会像正常响应一样写入文件
+- 写入前会解析符号链接
 
 **返回值：** 操作结果或错误信息
 
@@ -187,6 +199,7 @@ python -m mcp_server_requests fetch <URL> [--return-content {raw,basic_clean,str
 - **headers**（可选，对象）：自定义 HTTP 请求头
 - **data**（可选，字符串）：文本格式的请求体数据，与 json 参数互斥
 - **json**（可选，任意类型）：JSON 格式的请求体数据，与 data 参数互斥
+- **timeout**（可选，数字）：请求超时时间，单位秒，默认 30。传 `null` 表示不超时。
 
 **返回值：** 包含完整的 HTTP 响应（状态行、响应头、响应体）
 

@@ -79,7 +79,7 @@ class UALoader:
         os = os.lower() if os else None
 
         def cond(data: dict):
-            return (not browser or data["browser"].lower() == browser) and (not os or data["browser"].lower() == os)
+            return (not browser or data["browser"].lower() == browser) and (not os or data["os"].lower() == os)
 
         filtered = [d for d in self.data if cond(d)]
 

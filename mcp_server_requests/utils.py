@@ -130,11 +130,20 @@ except ImportError:
 
 
 def parse(s: str) -> dict[str, str]:
-    s = s.strip()
-    if len(s) == 0:
-        return {}
-    # key1=val1;key2val2... -> dict
-    return dict((k.strip(), v) for k, v in (item.split("=", 1) for item in s.split(";")) if k.strip())
+    """Parse a 'key1=value1;key2=value2' string into a dict.
+
+    Keys are case-insensitive and empty items are ignored.
+    """
+    result = {}
+    for item in s.split(";"):
+        item = item.strip()
+        if not item or "=" not in item:
+            continue
+        key, value = item.split("=", 1)
+        key = key.strip().lower()
+        if key:
+            result[key] = value.strip()
+    return result
 
 
 if __name__ == "__main__":

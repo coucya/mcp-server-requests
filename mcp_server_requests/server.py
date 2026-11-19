@@ -24,7 +24,8 @@ class WritePathError(Exception):
 
 
 def _protected_paths() -> tuple[str, ...]:
-    """Return system directories that must never be written to."""
+    """Return files and directories that must never be written to."""
+    home = os.path.expanduser("~")
     if os.name == 'nt':
         candidates = []
         for env_name in ("SystemRoot", "ProgramFiles", "ProgramFiles(x86)", "ProgramData"):
@@ -33,17 +34,75 @@ def _protected_paths() -> tuple[str, ...]:
                 candidates.append(value)
         if not candidates:
             candidates = [r"C:\Windows", r"C:\Program Files", r"C:\Program Files (x86)"]
+        appdata = os.environ.get("APPDATA")
+        if appdata:
+            candidates.append(
+                os.path.join(appdata, "Microsoft", "Windows", "Start Menu", "Programs", "Startup")
+            )
     else:
         candidates = [
             "/etc", "/usr", "/bin", "/sbin", "/lib", "/lib64",
             "/boot", "/proc", "/sys", "/dev",
         ]
-    return tuple(_normalize_path(path) for path in candidates)
+
+    candidates.extend([
+        os.path.join(home, ".config", "autostart"),
+        os.path.join(home, ".aws"),
+        os.path.join(home, ".gnupg"),
+        os.path.join(home, ".ssh"),
+        os.path.join(home, ".bashrc"),
+        os.path.join(home, ".bash_profile"),
+        os.path.join(home, ".bash_login"),
+        os.path.join(home, ".profile"),
+        os.path.join(home, ".zshrc"),
+        os.path.join(home, ".zprofile"),
+    ])
+
+    result = []
+    seen = set()
+    for path in candidates:
+        normalized = _normalize_path(path)
+        if normalized not in seen:
+            seen.add(normalized)
+            result.append(normalized)
+    return tuple(result)
 
 
 def _normalize_path(path: str) -> str:
-    """Expand ~ and make the path absolute."""
+    """Expand ~ and normalize the path without changing relative vs absolute."""
     return os.path.normpath(os.path.expanduser(path))
+
+
+def _realpath(path: str) -> str:
+    """Return the canonical path, stripping the Windows extended-length prefix."""
+    resolved = os.path.realpath(path)
+    if os.name == 'nt':
+        if resolved.startswith('\\\\?\\UNC\\'):
+            resolved = '\\\\' + resolved[8:]
+        elif resolved.startswith('\\\\?\\'):
+            resolved = resolved[4:]
+    return resolved
+
+
+def _path_key(path: str) -> str:
+    """Return a canonical comparison key for a path."""
+    return os.path.normcase(_realpath(os.path.abspath(os.path.expanduser(path))))
+
+
+def _is_inside(path_key: str, root_key: str) -> bool:
+    """Return True when path_key is strictly inside root_key."""
+    prefix = root_key.rstrip(os.sep) + os.sep
+    return path_key.startswith(prefix)
+
+
+def _configured_dir(path: str | None) -> str | None:
+    """Return a normalized absolute directory, or None when it is relative/empty."""
+    if not path:
+        return None
+    normalized = _normalize_path(path)
+    if not os.path.isabs(normalized):
+        return None
+    return normalized
 
 
 def get_user_agent(
@@ -133,41 +192,72 @@ def resolve_write_path(
 ) -> str:
     """Resolve file_path and ensure it stays inside a writable root.
 
-    Returns the normalized absolute path. Raises WritePathError otherwise.
+    Relative paths are resolved against workspace. Symlinks are resolved
+    before the containment checks. Existing files are never overwritten.
+    Returns the canonical absolute path. Raises WritePathError otherwise.
     """
     if not file_path or not file_path.strip():
-        raise WritePathError("file_path must not be empty")
+        raise WritePathError("file_path must not be empty. Provide a file path.")
+    file_path = file_path.strip()
 
-    file_path = _normalize_path(file_path)
+    if workspace:
+        workspace = _normalize_path(workspace)
+        if not os.path.isabs(workspace):
+            workspace = None
 
-    if os.path.isabs(file_path):
-        candidate = file_path
+    normalized = _normalize_path(file_path)
+
+    if os.path.isabs(normalized):
+        candidate = os.path.abspath(normalized)
     else:
         if not workspace:
             raise WritePathError(
-                "relative paths require a workspace; configure --workspace or use an absolute path"
+                "relative paths are not available: the server was started without a workspace. "
+                "This is a server-side setting and cannot be changed by tool calls. "
+                "Use an absolute path, or tell the user that the server needs --workspace "
+                "to accept relative paths."
             )
-        candidate = _normalize_path(os.path.join(workspace, file_path))
+        candidate = os.path.normpath(os.path.join(workspace, normalized))
 
-    allowed_keys = [os.path.normcase(path) for path in (allowed_paths or ())]
-    denied_keys = [os.path.normcase(path) for path in (denied_paths or ())]
-    candidate_key = os.path.normcase(candidate)
+    if not os.path.isabs(candidate):
+        raise WritePathError(f"path '{file_path}' must resolve to an absolute path. Use an absolute path.")
 
-    if any(candidate_key.startswith(root_key + os.sep) for root_key in denied_keys):
-        raise WritePathError(f"path '{file_path}' is inside a denied write root.")
+    resolved = _realpath(candidate)
+    resolved_key = os.path.normcase(resolved)
+    denied_keys = [_path_key(path) for path in (denied_paths or ())]
+    allowed_keys = [_path_key(path) for path in (allowed_paths or ())]
+
+    # Denied paths include whole directories and individual files.
+    is_denied = any(
+        resolved_key == root_key or _is_inside(resolved_key, root_key)
+        for root_key in denied_keys
+    )
+    if is_denied:
+        raise WritePathError(f"path '{file_path}' is inside a denied write root. Choose a different path.")
 
     if len(allowed_keys) == 0:
-        raise WritePathError("fetch_to_file is enabled but no writable directory is configured.")
-
-    if not any(candidate_key.startswith(root_key + os.sep) for root_key in allowed_keys):
         raise WritePathError(
-            f"path '{file_path}' is not inside any allowed write root: {', '.join(allowed_keys)}"
+            "no writable directory is configured on the server. "
+            "This is a server-side setting and cannot be changed by tool calls. "
+            "Ask the user to restart the server with --workspace or --writable-dir."
         )
 
-    if os.path.isdir(candidate):
-        raise WritePathError(f"path '{file_path}' is a directory, not a file")
+    if not any(_is_inside(resolved_key, root_key) for root_key in allowed_keys):
+        raise WritePathError(
+            f"path '{file_path}' is not inside any writable directory configured on the server. "
+            "Choose a different path."
+        )
 
-    return candidate
+    # isdir() runs first so directories get a clearer error message.
+    # lexists() covers regular files, directories, symlinks, and broken symlinks.
+    if os.path.isdir(candidate):
+        raise WritePathError(f"path '{file_path}' is a directory, not a file. Provide a file path.")
+    if os.path.lexists(candidate):
+        raise WritePathError(
+            f"path '{file_path}' already exists; refusing to overwrite. Choose a different file name."
+        )
+
+    return resolved
 
 
 def create_mcp_server(
@@ -186,16 +276,19 @@ def create_mcp_server(
 
     ua = get_user_agent(ua=ua, ua_random=ua_random, ua_os=ua_os, ua_browser=ua_browser)
 
-    workspace_path = _normalize_path(workspace) if workspace else None
-    allowed_paths: list[str] = [workspace, *allow_write_paths] if workspace else [*allow_write_paths]
-    allowed_paths = list(set(_normalize_path(p) for p in allowed_paths))
-    allowed_paths = list(filter(os.path.isabs, allowed_paths))
+    workspace_path = _configured_dir(workspace)
     denied_paths = list(_protected_paths())
+    allowed_paths: list[str] = []
+    for path in ([workspace] if workspace else []) + list(allow_write_paths):
+        configured = _configured_dir(path)
+        if configured is not None and configured not in allowed_paths:
+            allowed_paths.append(configured)
 
     @mcp.tool(name="fetch")
     def fetch_tool(
         url: Annotated[str, "(require) The URL to fetch content from"],
         return_content: Annotated[Literal['raw', 'basic_clean', 'strict_clean', 'markdown'], "(optional, Defaults to \"markdown\") processing format for HTML content"] = "markdown",
+        timeout: Annotated[float | None, "(optional, Defaults to 30) request timeout in seconds; use null for no timeout"] = 30.0,
     ) -> str:
         """Fetch web page content
 
@@ -210,6 +303,7 @@ def create_mcp_server(
                 - "basic_clean": Removes non-displaying tags (script, style, meta, etc.) while preserving structure
                 - "strict_clean": Removes non-displaying tags and most HTML attributes, keeping only essential structure
                 - "markdown": Converts HTML content to clean, readable Markdown format
+            timeout (float, optional): Request timeout in seconds. Defaults to 30. Use null for no timeout.
 
         Examples:
             // Returns content as markdown
@@ -227,7 +321,8 @@ def create_mcp_server(
                 query=None,
                 headers={"User-Agent": ua},
                 data=None,
-                json_=None
+                json_=None,
+                timeout=timeout,
             )
         except RequestError as e:
             return "encountered an internal error when making a request, with the following error message:\n" \
@@ -264,9 +359,10 @@ def create_mcp_server(
         @mcp.tool(name="fetch_to_file")
         def fetch_to_file_tool(
             url: Annotated[str, "(require) The URL to fetch content from"],
-            file_path: Annotated[str, "(require) File path where the content will be saved"],
+            file_path: Annotated[str, "(require) File path where the content will be saved. Must be inside a writable directory configured on the server."],
             *,
             return_content: Annotated[Literal['raw', 'basic_clean', 'strict_clean', 'markdown'], "(optional, Defaults to \"markdown\") processing format for HTML content"] = "markdown",
+            timeout: Annotated[float | None, "(optional, Defaults to 30) request timeout in seconds; use null for no timeout"] = 30.0,
         ) -> str:
             """Fetch web content and save it to a file
 
@@ -275,17 +371,20 @@ def create_mcp_server(
             - Automatic directory creation for nested file paths
 
             Notes:
+            - The target path must be inside a writable directory configured on the server
             - Automatically creates parent directories if they don't exist
+            - Existing files are never overwritten
             - Uses UTF-8 encoding for all saved files
 
             Args:
                 url (str): The URL to fetch content from.
-                file_path (str): File path where the content will be saved.
+                file_path (str): File path where the content will be saved. Must be inside a writable directory configured on the server.
                 return_content ('raw' | 'basic_clean' | 'strict_clean' | 'markdown', optional): Processing format for HTML content. Defaults to "markdown".
                   - "raw": Saves unmodified HTML content
                   - "basic_clean": Saves HTML with non-displaying tags removed (script, style, etc.) while preserving structure
                   - "strict_clean": Saves HTML with non-displaying tags and most HTML attributes removed, keeping only essential structure
                   - "markdown": Converts HTML content to clean, readable Markdown format before saving
+                timeout (float, optional): Request timeout in seconds. Defaults to 30. Use null for no timeout.
 
             Examples:
                 // Save web page as markdown
@@ -297,12 +396,15 @@ def create_mcp_server(
                 // Save cleaned content
                 fetch_to_file({url: "https://example.com/docs", file_path: "docs/cleaned.html", return_content: "strict_clean"})
             """
+            if len(url) == 0:
+                return "Error: url must not be empty"
+
             try:
                 validated_path = resolve_write_path(file_path, workspace_path, allowed_paths, denied_paths)
             except WritePathError as e:
                 return f"Error: {e.message}"
-            except Exception as e:
-                return f"An unexpected error occurred while fetching {url}."
+            except Exception:
+                return f"An unexpected error occurred while resolving the target path for \"{url}\"."
 
             try:
                 response = http_request(
@@ -310,7 +412,8 @@ def create_mcp_server(
                     query=None,
                     headers={"User-Agent": ua},
                     data=None,
-                    json_=None
+                    json_=None,
+                    timeout=timeout,
                 )
             except RequestError as e:
                 return "encountered an internal error when making a request, with the following error message:\n" \
@@ -348,9 +451,11 @@ def create_mcp_server(
                 if dir_path:
                     os.makedirs(dir_path, exist_ok=True)
 
-                with open(validated_path, 'w', encoding='utf-8', newline='') as f:
+                with open(validated_path, 'x', encoding='utf-8', newline='') as f:
                     f.write(content)
 
+            except FileExistsError:
+                return f"Error: file '{validated_path}' already exists; refusing to overwrite"
             except OSError as e:
                 return f"Error: Unable to write to file '{validated_path}': {e}"
             except Exception as e:
@@ -367,6 +472,7 @@ def create_mcp_server(
         headers: Annotated[Optional[Dict[str, str]], "(optional) Custom HTTP request headers"] = None,
         data: Annotated[Optional[str], "(optional) Text data to send in the request body. Cannot be used with 'json'"] = None,
         json: Annotated[Optional[Any], "(optional) JSON to send in the request body. Cannot be used with 'data'"] = None,
+        timeout: Annotated[float | None, "(optional, Defaults to 30) request timeout in seconds; use null for no timeout"] = 30.0,
     ) -> str:
         """Execute an HTTP request with the specified method
 
@@ -389,6 +495,7 @@ def create_mcp_server(
             headers ({ [string]: string }, optional): Custom HTTP request headers.
             data (str, optional): Text data to send in the request body. Cannot be used with 'json'.
             json (Any JSON, optional): Data to serialize as JSON and send in the request body. Cannot be used with 'data'.
+            timeout (float, optional): Request timeout in seconds. Defaults to 30. Use null for no timeout.
 
         Examples:
             // GET request (default method)
@@ -431,7 +538,8 @@ def create_mcp_server(
                 query=query,
                 headers=hs,
                 data=data,
-                json_=json
+                json_=json,
+                timeout=timeout,
             )
         except RequestError as e:
             return "encountered an internal error when making a request, with the following error message:\n" \

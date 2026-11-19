@@ -85,10 +85,14 @@ def http_request(
     query: Optional[dict] = None,
     data: Optional[Union[str, bytes, bytearray]] = None,
     json_: Optional[dict] = None,
-    headers: Optional[dict] = None
+    headers: Optional[dict] = None,
+    timeout: float | None = 30.0,
 ) -> Response:
     if headers is None:
         headers = {}
+
+    if timeout is not None and (not isinstance(timeout, (int, float)) or timeout <= 0):
+        raise ArgumentError("timeout must be a positive number or None")
 
     if not isinstance(method, str):
         raise ArgumentError(f"http method must be a string, and must be one of {str(HTTP_METHODS)}")
@@ -133,7 +137,7 @@ def http_request(
     try:
         url = quote(url, safe=";/?:@&=+$,", encoding="utf-8")
         request = urllib.request.Request(url, method=method, headers=headers, data=data_bytes)
-        response: http.client.HTTPResponse = urllib.request.urlopen(request)
+        response: http.client.HTTPResponse = urllib.request.urlopen(request, timeout=timeout)
 
         version = VERSION_MAP.get(response.version, "HTTP/1.1")
         status_code = response.status
