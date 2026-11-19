@@ -126,7 +126,6 @@ python -m mcp_server_requests
 - HTTP 4xx/5xx response bodies are saved like any other response body.
 - System directories such as `/etc` and `C:\Windows` are always denied. User-level sensitive paths are denied as well: `~/.ssh`, `~/.aws`, `~/.gnupg`, `~/.config/autostart`, shell startup files such as `~/.bashrc` and `~/.zshrc`, and the Windows Startup folder.
 - The `.git` and `.husky` directories inside every writable root are denied, so fetched content cannot install git hooks.
-- Do not point `--workspace` at your home directory or at a directory that contains sensitive configuration files. The allow-list only confines writes to the configured roots; it cannot make every file inside a broad root safe.
 - `fetch_to_file` only writes text content. Non-text responses return an error and no file is created.
 
 ---
