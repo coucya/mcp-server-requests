@@ -5,8 +5,9 @@ import tempfile
 import shutil
 import asyncio
 import uuid
+from unittest import mock
 
-from .request import Response
+from .request import RequestError, Response
 from .server import (
     create_mcp_server,
     format_response_result,
@@ -56,6 +57,35 @@ async def _tool_names(mcp) -> set[str]:
     if inspect.isawaitable(tools):
         tools = await tools
     return {tool.name for tool in tools}
+
+
+async def _get_tool(mcp, name: str):
+    """Return a registered tool object across FastMCP versions."""
+    get_tool = getattr(mcp, "get_tool", None)
+    if get_tool is not None:
+        tool = get_tool(name)
+        if inspect.isawaitable(tool):
+            tool = await tool
+        return tool
+
+    get_tools = getattr(mcp, "get_tools", None)
+    if get_tools is not None:
+        tools = get_tools()
+        if inspect.isawaitable(tools):
+            tools = await tools
+        if isinstance(tools, dict):
+            return tools[name]
+        for tool in tools:
+            if tool.name == name:
+                return tool
+
+    tools = mcp._list_tools()
+    if inspect.isawaitable(tools):
+        tools = await tools
+    for tool in tools:
+        if tool.name == name:
+            return tool
+    raise KeyError(name)
 
 
 class TestWritePathHelpers(unittest.TestCase):
@@ -213,6 +243,52 @@ class TestWritePathHelpers(unittest.TestCase):
         finally:
             shutil.rmtree(outside_dir, ignore_errors=True)
 
+    def test_protected_paths_include_reported_targets(self):
+        home = _normalize_path(os.path.expanduser("~"))
+        denied = _protected_paths()
+        self.assertIn(_normalize_path(os.path.join(home, ".ssh")), denied)
+        self.assertIn(_normalize_path(os.path.join(home, ".bashrc")), denied)
+        self.assertIn(_normalize_path(os.path.join(home, ".config", "autostart")), denied)
+        if os.name == "nt":
+            system_root = os.environ.get("SystemRoot")
+            if system_root:
+                self.assertIn(_normalize_path(system_root), denied)
+        else:
+            self.assertIn("/etc", denied)
+
+    def test_resolve_reported_ssh_target_rejected(self):
+        home = _normalize_path(os.path.expanduser("~"))
+        target = os.path.join(home, ".ssh", "authorized_keys")
+        with self.assertRaises(WritePathError):
+            resolve_write_path(target, home, [home], _protected_paths())
+
+    def test_resolve_reported_bashrc_rejected(self):
+        home = _normalize_path(os.path.expanduser("~"))
+        target = os.path.join(home, ".bashrc")
+        with self.assertRaises(WritePathError):
+            resolve_write_path(target, home, [home], _protected_paths())
+
+    def test_resolve_reported_autostart_rejected(self):
+        home = _normalize_path(os.path.expanduser("~"))
+        target = os.path.join(home, ".config", "autostart", "evil.desktop")
+        with self.assertRaises(WritePathError):
+            resolve_write_path(target, home, [home], _protected_paths())
+
+    @unittest.skipIf(os.name == "nt", "POSIX protected system directory")
+    def test_resolve_posix_etc_rejected(self):
+        with self.assertRaises(WritePathError):
+            resolve_write_path("/etc/cron.d/evil", "/", ["/"], _protected_paths())
+
+    @unittest.skipUnless(os.name == "nt", "Windows protected system directory")
+    def test_resolve_windows_system_directory_rejected(self):
+        system_root = os.environ.get("SystemRoot")
+        if not system_root:
+            self.skipTest("SystemRoot is not set")
+        drive_root = os.path.splitdrive(system_root)[0] + os.sep
+        target = os.path.join(system_root, "Temp", "evil.txt")
+        with self.assertRaises(WritePathError):
+            resolve_write_path(target, drive_root, [drive_root], _protected_paths())
+
 
 class TestCreateMcpServer(unittest.TestCase):
     """Test fetch_to_file registration behavior"""
@@ -269,6 +345,97 @@ class TestCreateMcpServer(unittest.TestCase):
             self.assertIn(_normalize_path(os.path.join(workspace, ".husky")), denied)
         finally:
             shutil.rmtree(workspace, ignore_errors=True)
+
+
+class TestFetchToFileTool(unittest.TestCase):
+    def setUp(self):
+        self.workspace = _make_temp_dir()
+
+    def tearDown(self):
+        shutil.rmtree(self.workspace, ignore_errors=True)
+
+    def _make_server(self):
+        return create_mcp_server(
+            ua="Test-Agent",
+            enable_fetch_to_file=True,
+            workspace=self.workspace,
+        )
+
+    @async_test
+    async def test_fetch_error_does_not_write_file(self):
+        mcp = self._make_server()
+        tool = await _get_tool(mcp, "fetch_to_file")
+        target = os.path.join(self.workspace, "out.txt")
+        with mock.patch(
+            "mcp_server_requests.server.http_request",
+            side_effect=RequestError("connection failed"),
+        ):
+            result = tool.fn(
+                url="https://example.com",
+                file_path="out.txt",
+                return_content="raw",
+                timeout=30.0,
+            )
+        self.assertIn("internal error", result)
+        self.assertFalse(os.path.exists(target))
+
+    @async_test
+    async def test_format_error_does_not_write_file(self):
+        mcp = self._make_server()
+        tool = await _get_tool(mcp, "fetch_to_file")
+        target = os.path.join(self.workspace, "out.bin")
+        response = Response(
+            "https://example.com", "HTTP/1.1", 200, "OK",
+            [("Content-Type", "application/octet-stream")],
+            b"\x00",
+        )
+        with mock.patch("mcp_server_requests.server.http_request", return_value=response):
+            result = tool.fn(
+                url="https://example.com",
+                file_path="out.bin",
+                return_content="raw",
+                timeout=30.0,
+            )
+        self.assertIn("cannot be converted", result)
+        self.assertFalse(os.path.exists(target))
+
+    @async_test
+    async def test_existing_file_not_overwritten(self):
+        mcp = self._make_server()
+        tool = await _get_tool(mcp, "fetch_to_file")
+        target = os.path.join(self.workspace, "out.txt")
+        with open(target, "w", encoding="utf-8") as f:
+            f.write("original")
+        result = tool.fn(
+            url="https://example.com",
+            file_path="out.txt",
+            return_content="raw",
+            timeout=30.0,
+        )
+        self.assertIn("already exists", result)
+        with open(target, "r", encoding="utf-8") as f:
+            self.assertEqual(f.read(), "original")
+
+    @async_test
+    async def test_text_response_writes_file(self):
+        mcp = self._make_server()
+        tool = await _get_tool(mcp, "fetch_to_file")
+        target = os.path.join(self.workspace, "out.txt")
+        response = Response(
+            "https://example.com", "HTTP/1.1", 200, "OK",
+            [("Content-Type", "text/plain")],
+            b"hello",
+        )
+        with mock.patch("mcp_server_requests.server.http_request", return_value=response):
+            result = tool.fn(
+                url="https://example.com",
+                file_path="out.txt",
+                return_content="raw",
+                timeout=30.0,
+            )
+        self.assertIn("successfully written", result)
+        with open(target, "r", encoding="utf-8") as f:
+            self.assertEqual(f.read(), "hello")
 
 
 class TestFormatResponseResult(unittest.TestCase):
