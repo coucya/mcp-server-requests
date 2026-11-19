@@ -5,7 +5,7 @@ from fastmcp import FastMCP
 
 
 from .version import __version__
-from .request import ArgumentError, RequestError, Response, http_request
+from .request import RequestError, Response, http_request
 from .ua import random_ua
 from .utils import clean_html, html_to_markdown
 
@@ -44,16 +44,6 @@ def _protected_paths() -> tuple[str, ...]:
 def _normalize_path(path: str) -> str:
     """Expand ~ and make the path absolute."""
     return os.path.normpath(os.path.expanduser(path))
-
-
-# def is_protected_path(path: str) -> bool:
-#     """Check whether a path points into a protected system directory."""
-#     key = _normalize_path(path)
-#     for protected in _protected_paths():
-#         protected_key = _path_key(protected)
-#         if key == protected_key or key.startswith(protected_key + os.sep):
-#             return True
-#     return False
 
 
 def get_user_agent(
