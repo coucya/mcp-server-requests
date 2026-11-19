@@ -23,7 +23,7 @@ class WritePathError(Exception):
         self.message = message
 
 
-def _protected_paths() -> tuple[str, ...]:
+def _protected_paths(allowed_paths: list[str] | None = None) -> list[str]:
     """Return files and directories that must never be written to."""
     home = os.path.expanduser("~")
     if os.name == 'nt':
@@ -58,6 +58,10 @@ def _protected_paths() -> tuple[str, ...]:
         os.path.join(home, ".zprofile"),
     ])
 
+    for root in (allowed_paths or ()):
+        candidates.append(os.path.join(root, ".git"))
+        candidates.append(os.path.join(root, ".husky"))
+
     result = []
     seen = set()
     for path in candidates:
@@ -65,7 +69,7 @@ def _protected_paths() -> tuple[str, ...]:
         if normalized not in seen:
             seen.add(normalized)
             result.append(normalized)
-    return tuple(result)
+    return result
 
 
 def _normalize_path(path: str) -> str:
@@ -277,12 +281,13 @@ def create_mcp_server(
     ua = get_user_agent(ua=ua, ua_random=ua_random, ua_os=ua_os, ua_browser=ua_browser)
 
     workspace_path = _configured_dir(workspace)
-    denied_paths = list(_protected_paths())
     allowed_paths: list[str] = []
     for path in ([workspace] if workspace else []) + list(allow_write_paths):
         configured = _configured_dir(path)
         if configured is not None and configured not in allowed_paths:
             allowed_paths.append(configured)
+
+    denied_paths = _protected_paths(allowed_paths)
 
     @mcp.tool(name="fetch")
     def fetch_tool(

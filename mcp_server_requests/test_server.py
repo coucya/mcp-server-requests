@@ -15,6 +15,7 @@ from .server import (
     WritePathError,
     _configured_dir,
     _normalize_path,
+    _protected_paths,
     _realpath,
 )
 
@@ -147,6 +148,18 @@ class TestWritePathHelpers(unittest.TestCase):
         with self.assertRaises(WritePathError):
             resolve_write_path(denied_file, workspace, [workspace], [denied_file])
 
+    def test_resolve_denied_git_hooks_rejected(self):
+        workspace = _normalize_path(self.temp_dir)
+        denied = _normalize_path(os.path.join(workspace, ".git"))
+        target = os.path.join(denied, "hooks", "pre-commit")
+        with self.assertRaises(WritePathError):
+            resolve_write_path(target, workspace, [workspace], [denied])
+
+    @unittest.skipIf(os.name == "nt", "POSIX double-slash path semantics")
+    def test_resolve_double_slash_denied(self):
+        with self.assertRaises(WritePathError):
+            resolve_write_path("//etc/passwd", "/", ["/"], ["/etc"])
+
     def test_resolve_existing_file_rejected(self):
         workspace = _normalize_path(self.temp_dir)
         target = os.path.join(self.temp_dir, "exists.txt")
@@ -247,6 +260,15 @@ class TestCreateMcpServer(unittest.TestCase):
             _configured_dir(tempfile.gettempdir()),
             _normalize_path(tempfile.gettempdir()),
         )
+
+    def test_protected_paths_includes_git_hooks(self):
+        workspace = _make_temp_dir()
+        try:
+            denied = _protected_paths([workspace])
+            self.assertIn(_normalize_path(os.path.join(workspace, ".git")), denied)
+            self.assertIn(_normalize_path(os.path.join(workspace, ".husky")), denied)
+        finally:
+            shutil.rmtree(workspace, ignore_errors=True)
 
 
 class TestFormatResponseResult(unittest.TestCase):

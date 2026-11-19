@@ -121,6 +121,7 @@ python -m mcp_server_requests
 - 写入前会解析符号链接。解析后的最终目标必须位于某个可写根内。
 - HTTP 4xx/5xx 的响应体会像正常响应一样写入文件。
 - `/etc`、`C:\Windows` 等系统目录始终禁止写入。用户级敏感路径也会被拒绝：`~/.ssh`、`~/.aws`、`~/.gnupg`、`~/.config/autostart`、`~/.bashrc`、`~/.zshrc` 等 shell 启动文件，以及 Windows 的启动目录。
+- 每个可写根下的 `.git` 和 `.husky` 目录也会被拒绝，防止抓取到的网页内容安装 git hook。
 - 不要把 `--workspace` 设为家目录或包含敏感配置文件的目录。可写根只负责把写入限制在配置的目录内，无法让一个范围过大的目录里的每个文件都变安全。
 - `fetch_to_file` 只保存文本内容。非文本响应会返回错误，不会创建文件。
 
