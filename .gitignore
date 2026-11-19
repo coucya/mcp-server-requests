@@ -1,6 +1,7 @@
 **/__pycache__
 /.roo
 /.rooignore
+/.rol
 /.vscode
 /.claude
 /doc
@@ -9,3 +10,5 @@
 /temp
 /todo.txt
 CLAUDE.md
+AGENTS.md
+codemap.md
