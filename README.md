@@ -13,6 +13,8 @@ An MCP server that provides HTTP request capabilities, enabling LLMs to fetch an
   - Supports filtering web content (non-visual elements like script, style, meta)
   - Feeds into LLM context, reducing token consumption through Markdown conversion or filtering non-visual elements
 - **fetch_to_file**: Web content saving tool
+  - Disabled by default; enable it with `--enable-fetch-to-file`
+  - File writes are limited to the configured writable directories, controlled by `--workspace` and `--writable-dir`
   - Web content is not fed into LLM context, avoiding excessive token consumption
 - **http_request**: Generic HTTP request tool
   - Full HTTP method support (GET, POST, PUT, PATCH, DELETE)
@@ -21,7 +23,6 @@ An MCP server that provides HTTP request capabilities, enabling LLMs to fetch an
   - Returns complete HTTP response information (status, headers, body) for LLMs
 - Supports custom User-Agent
 - Supports random User-Agent generation
-- Supports using MCP Root capability, controlled by `--use-root`, usable with MCP Clients that have `root` capability
 
 ## Installation
 
@@ -31,10 +32,13 @@ cd mcp-server-requests
 pip install .
 ```
 
+Requires Python 3.11 or newer.
+
 ## Usage
 
 ### MCP Server Configuration
 
+Basic usage:
 ```json
 {
     "mcpServers": {
@@ -43,6 +47,28 @@ pip install .
             "args": [
                 "-m",
                 "mcp_server_requests"
+            ]
+        }
+    }
+}
+```
+
+Advanced usage (enable `fetch_to_file`; add writable directories with `--workspace` or `--writable-dir`):
+```json
+{
+    "mcpServers": {
+        "mcp-server-requests": {
+            "command": "python",
+            "args": [
+                "-m",
+                "mcp_server_requests",
+                "--enable-fetch-to-file",
+                "--workspace",
+                "/home/user/project",
+                "--writable-dir",
+                "/home/user/downloads",
+                "--writable-dir",
+                "/home/user/notes"
             ]
         }
     }
@@ -64,8 +90,9 @@ python -m mcp_server_requests
 - `--random-user-agent [browser=xxx;os=xxx]`: Use randomly generated User-Agent
 - `--force-user-agent`: Force using command line specified User-Agent, ignoring LLM provided UA
 - `--list-os-and-browser`: List available browsers and OS for random User-Agent generation
-- `--use-root`: Enable workspace root support for file operations (requires MCP Client with `root` capability support)
-- `--allow-external-file-access`: Allow file operations outside workspace (only with --use-root)
+- `--enable-fetch-to-file`: Enable the `fetch_to_file` tool (disabled by default)
+- `--workspace PATH`: Writable directory that also serves as the base for relative paths
+- `--writable-dir PATH`: Additional writable directory for `fetch_to_file` (repeatable)
 
 #### Option Details
 - `--user-agent` and `--random-user-agent` are mutually exclusive and cannot be used together
@@ -87,14 +114,13 @@ python -m mcp_server_requests
     - Otherwise use command-line specified User-Agent
   - If none specified, use default User-Agent: `Mozilla/5.0 (compatible; mcp-server-requests/{version})`
 
-- `--use-root` enables file operations relative to workspace root:
-  - **Prerequisite**: Requires MCP Client with `root` capability support
-  - When enabled: `fetch_to_file` allows absolute paths or relative paths, relative paths are relative to workspace root
-  - When disabled: `fetch_to_file` must use absolute paths, files are saved to specified absolute path locations
-- `--allow-external-file-access`: Controls whether file operations outside workspace are allowed (only usable with --use-root)
-  - **Prerequisite**: Requires `--use-root` to be enabled, this option has no effect if `--use-root` is not enabled
-  - When enabled: `fetch_to_file` can operate on files outside the workspace directory
-  - When disabled: `fetch_to_file` can only operate on files within the workspace directory, even if absolute paths are provided, files outside the workspace cannot be operated on
+- `fetch_to_file` is disabled by default and is not registered as an MCP tool, so the model cannot see it. Enable it with `--enable-fetch-to-file`.
+- Writable roots define the scope `fetch_to_file` can write to: the `--workspace` directory plus every `--writable-dir` directory:
+  - `--workspace` is the base for relative paths. Relative paths are rejected when no workspace is configured.
+  - `--writable-dir` adds extra writable directories on top of `--workspace`.
+  - `file_path` may be absolute or relative, but the resolved file must be inside one of the writable roots.
+  - Writable roots must be directories. Missing directories are created when the tool is first used.
+- System directories such as `/etc` and `C:\Windows` are always denied.
 
 ---
 
@@ -140,14 +166,15 @@ Fetch content from the specified URL and save it to a file.
 **Parameters:**
 - **url** (required, string): Target URL
 - **file_path** (required, string): File save path
-  - When `--use-root` is enabled: Must be a **relative path** (relative to workspace root)
-  - When `--use-root` is disabled: Must be an **absolute path**
+  - Absolute paths must be inside one of the writable roots
+  - Relative paths are resolved against `--workspace` and must stay inside a writable root
 - **return_content** (optional, enum): Content processing format, defaults to "markdown", same options as fetch tool
 
 **Features:**
+- Disabled by default; enable with `--enable-fetch-to-file`
+- Writes outside the configured writable roots are rejected
 - Automatically creates parent directories for nested paths
 - All files saved with UTF-8 encoding
-- When `--use-root` is enabled, can work with `--allow-external-file-access` to control file access scope
 
 **Returns:** Operation result or error message
 

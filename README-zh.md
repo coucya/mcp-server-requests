@@ -9,6 +9,8 @@
   - 支持过滤网页内容（script、style、meta 等非视觉元素）
   - 填充到 LLM 上下文、通过转换为 Markdown 或过滤非视觉元素减少 tokens 消耗
 - **fetch_to_file**：保存网页内容到文件工具
+  - 默认关闭，需用 `--enable-fetch-to-file` 开启
+  - 可写入的文件范围限制在配置的可写目录内，用 `--workspace` 和 `--writable-dir` 控制
   - 网页内容不会填充到 LLM 上下文、不会过多消耗 tokens
 - **http_request**：通用 HTTP 请求工具
   - 完整 HTTP 方法支持（GET、POST、PUT、PATCH、DELETE）
@@ -17,7 +19,6 @@
   - 为 LLM 返回完整 HTTP 响应信息（状态、响应头、响应体）
 - 支持自定义 User-Agent
 - 支持随机 User-Agent 生成
-- 支持使用 MCP Root 能力，用 `--use-root` 控制，可用于拥有 `root` 能力的 MCP Client
 
 ## 安装
 
@@ -27,10 +28,13 @@ cd mcp-server-requests
 pip install .
 ```
 
+需要 Python 3.11 或更高版本。
+
 ## 使用
 
 ### MCP Server 配置
 
+基本使用：
 ```json
 {
     "mcpServers": {
@@ -39,6 +43,28 @@ pip install .
             "args": [
                 "-m",
                 "mcp_server_requests"
+            ]
+        }
+    }
+}
+```
+
+高级使用（启用 `fetch_to_file`，需要使用 `--workspace` 或 `--writable-dir` 参数添加可写的目录）：
+```json
+{
+    "mcpServers": {
+        "mcp-server-requests": {
+            "command": "python",
+            "args": [
+                "-m",
+                "mcp_server_requests",
+                "--enable-fetch-to-file",
+                "--workspace",
+                "/home/user/project",
+                "--writable-dir",
+                "/home/user/downloads",
+                "--writable-dir",
+                "/home/user/notes"
             ]
         }
     }
@@ -60,8 +86,9 @@ python -m mcp_server_requests
 - `--random-user-agent [browser=xxx;os=xxx]`：使用随机生成的 User-Agent
 - `--force-user-agent`：强制使用命令行指定的 User-Agent，忽略 LLM 提供的 UA
 - `--list-os-and-browser`：列出可用于生成随机 User-Agent 的浏览器和操作系统
-- `--use-root`：启用工作区根目录支持的文件操作（需要支持 `root` 能力的 MCP Client）
-- `--allow-external-file-access`：允许在工作区外进行文件操作（仅与 --use-root 一起使用）
+- `--enable-fetch-to-file`：启用 `fetch_to_file` 工具（默认关闭）
+- `--workspace PATH`：可写目录，同时作为相对路径的根目录
+- `--writable-dir PATH`：为 `fetch_to_file` 追加额外的可写目录（可重复）
 
 #### 选项说明
 - `--user-agent` 和 `--random-user-agent` 选项互斥，不能同时使用
@@ -83,14 +110,13 @@ python -m mcp_server_requests
   - 否则使用命令行指定的 User-Agent
 - 如果都没有指定，使用默认 User-Agent：`Mozilla/5.0 (compatible; mcp-server-requests/{version})`
 
-- `--use-root` 启用相对于工作区根目录的文件操作：
-  - **前提条件**：需要支持 `root` 能力的 MCP Client
-  - 启用时：`fetch_to_file` 允许接受绝对路径或相对路径，相对路径相对于工作区根目录
-  - 禁用时：`fetch_to_file` 必须使用绝对路径，文件保存到指定的绝对路径位置
-- `--allow-external-file-access`：控制是否允许在工作区外操作文件（仅能与 `--use-root` 一起使用）
-  - **前提条件**：需要开启 `--use-root`，如果没有开启 `--use-root`，这该选项不生效
-  - 启用时：`fetch_to_file` 可以操作工作区目录外的文件。
-  - 禁用时：`fetch_to_file` 只能在工作区目录内部操作文件，即使提供的是绝对路径，也不能操作工作区外的文件。
+- `fetch_to_file` 默认不注册为 MCP 工具，模型看不到它。用 `--enable-fetch-to-file` 开启。
+- 可写目录是 `fetch_to_file` 可以写入的范围，是 `--workspace` 目录加上所有 `--writable-dir` 目录：
+  - 当 LLM 尝试把网页写入某个相对路径时，以 `--workspace` 为相对路径的根。未配置 workspace 时，相对路径会被拒绝。
+  - `--writable-dir` 用于在 `--workspace`之外添加额外的可写目录。
+  - `file_path` 可以是绝对路径或相对路径，但解析后的文件必须位于某个可写根内。
+  - 可写根必须是目录。目录不存在时，在首次使用工具时自动创建。
+- `/etc`、`C:\Windows` 等系统目录始终禁止写入。
 
 ---
 
@@ -136,14 +162,15 @@ python -m mcp_server_requests fetch <URL> [--return-content {raw,basic_clean,str
 **参数：**
 - **url**（必填，字符串）：目标 URL
 - **file_path**（必填，字符串）：文件保存路径
-  - 启用 `--use-root` 时：必须为**相对路径**（相对于工作区根目录）
-  - 禁用 `--use-root` 时：必须为**绝对路径**
+  - 绝对路径必须位于某个可写根内
+  - 相对路径以 `--workspace` 为基准，且必须落在某个可写根内
 - **return_content**（可选，枚举）：内容处理格式，默认为 "markdown"，选项同 fetch 工具
 
 **特性：**
+- 默认关闭，需用 `--enable-fetch-to-file` 开启
+- 写入配置的可写根之外的路径会被拒绝
 - 自动创建嵌套目录的父目录
 - 所有文件使用 UTF-8 编码保存
-- 启用 `--use-root` 时可配合 `--allow-external-file-access` 控制文件访问范围
 
 **返回值：** 操作结果或错误信息
 
