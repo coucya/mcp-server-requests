@@ -7,8 +7,6 @@ import urllib.request
 import http.client
 from urllib.parse import parse_qsl, quote, urlparse, urlencode, urlunparse
 
-from .utils import html_to_markdown, clean_html
-
 
 HTTP_METHODS = ["GET", "POST", "PUT", "PATCH", "DELETE"]
 
