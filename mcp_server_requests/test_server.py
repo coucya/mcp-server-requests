@@ -373,7 +373,7 @@ class TestFetchTool(unittest.TestCase):
 
         mocked.assert_called_once_with(
             "GET", "https://example.com",
-            query=None,
+
             headers={"User-Agent": "Test-Agent"},
             body=None,
             json_body=None,
@@ -383,7 +383,7 @@ class TestFetchTool(unittest.TestCase):
         self.assertIn("hello", result)
 
     @async_test
-    async def test_method_query_body_forwarded(self):
+    async def test_method_body_forwarded(self):
         mcp = self._make_server()
         tool = await _get_tool(mcp, "fetch")
         with mock.patch(
@@ -393,14 +393,14 @@ class TestFetchTool(unittest.TestCase):
             tool.fn(
                 url="https://example.com/log",
                 method="PATCH",
-                query={"q": "test", "limit": 10},
+
                 body="payload",
                 timeout=5.0,
             )
 
         mocked.assert_called_once_with(
             "PATCH", "https://example.com/log",
-            query={"q": "test", "limit": 10},
+
             headers={"User-Agent": "Test-Agent"},
             body="payload",
             json_body=None,
@@ -424,7 +424,7 @@ class TestFetchTool(unittest.TestCase):
 
         mocked.assert_called_once_with(
             "POST", "https://api.example.com/users",
-            query=None,
+
             headers={"User-Agent": "Test-Agent"},
             body=None,
             json_body={"name": "John"},
@@ -592,14 +592,14 @@ class TestFetchToFileTool(unittest.TestCase):
                 url="https://api.example.com/users",
                 file_path="out.json",
                 method="POST",
-                query={"q": "test"},
+
                 json_body={"name": "John"},
                 timeout=5.0,
             )
 
         mocked.assert_called_once_with(
             "POST", "https://api.example.com/users",
-            query={"q": "test"},
+
             headers={"User-Agent": "Test-Agent"},
             body=None,
             json_body={"name": "John"},
@@ -632,7 +632,7 @@ class TestFetchToFileTool(unittest.TestCase):
 
         mocked.assert_called_once_with(
             "PUT", "https://example.com/log",
-            query=None,
+
             headers={"User-Agent": "Test-Agent"},
             body="raw payload",
             json_body=None,

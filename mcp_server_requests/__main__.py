@@ -16,13 +16,6 @@ def _parse_header(value: str) -> tuple[str, str]:
     return name.strip(), header_value.strip()
 
 
-def _parse_query(value: str) -> tuple[str, str]:
-    key, sep, query_value = value.partition("=")
-    if not sep or not key.strip():
-        raise click.BadParameter(f"invalid query parameter '{value}', expected 'key=value'")
-    return key.strip(), query_value
-
-
 @click.group(invoke_without_command=True)
 @click.pass_context
 @click.option("--user-agent", default=None, help='Specify user agent string directly')
@@ -104,7 +97,6 @@ def main(
 @click.argument("url", type=str, required=True)
 @click.option("-X", "--method", type=click.Choice(['GET', 'POST', 'PUT', 'PATCH', 'DELETE'], case_sensitive=False), default="GET", show_default=True, help="HTTP method")
 @click.option("-H", "--header", "headers", multiple=True, metavar="'Name: value'", help="custom request header (repeatable)")
-@click.option("-q", "--query", "query_params", multiple=True, metavar="key=value", help="query parameter (repeatable)")
 @click.option("-d", "--body", default=None, help="text request body; cannot be used with --json-body")
 @click.option("--json-body", "json_body_text", default=None, metavar="JSON", help="JSON request body; cannot be used with --body")
 @click.option("--return-format", type=click.Choice(['raw', 'basic_clean', 'strict_clean', 'markdown']), default="markdown", help="return content format")
@@ -114,7 +106,6 @@ def fetch(
     url: str,
     method: str,
     headers: tuple[str, ...],
-    query_params: tuple[str, ...],
     body: Optional[str],
     json_body_text: Optional[str],
     return_format: Literal['raw'] | Literal['basic_clean'] | Literal['strict_clean'] | Literal['markdown'],
@@ -137,13 +128,6 @@ def fetch(
         merged_headers[name] = value
     merged_headers = merge_user_agent(merged_headers, ua, ua_force)
 
-    query = None
-    if query_params:
-        query = {}
-        for item in query_params:
-            key, value = _parse_query(item)
-            query[key] = value
-
     json_body_data = None
     if json_body_text is not None:
         try:
@@ -154,7 +138,6 @@ def fetch(
     try:
         response = http_request(
             method, url,
-            query=query,
             headers=merged_headers,
             body=body,
             json_body=json_body_data,

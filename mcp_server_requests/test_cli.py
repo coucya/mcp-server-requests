@@ -34,14 +34,13 @@ class TestFetchCommand(unittest.TestCase):
         self.assertEqual(result.exit_code, 0, result.output)
         args, kwargs = mocked.call_args
         self.assertEqual(args, ("GET", "https://example.com"))
-        self.assertIsNone(kwargs["query"])
         self.assertIsNone(kwargs["body"])
         self.assertIsNone(kwargs["json_body"])
         self.assertEqual(kwargs["timeout"], 30.0)
         self.assertIn("User-Agent", kwargs["headers"])
         self.assertIn("hello", result.output)
 
-    def test_method_headers_query_json(self):
+    def test_method_headers_json_body(self):
         with mock.patch(
             "mcp_server_requests.__main__.http_request",
             return_value=_response(b'{"ok": true}', "application/json"),
@@ -50,8 +49,6 @@ class TestFetchCommand(unittest.TestCase):
                 "https://api.example.com/users",
                 "-X", "POST",
                 "-H", "Authorization: Bearer token",
-                "-q", "q=test",
-                "-q", "limit=10",
                 "--json-body", '{"name": "John"}',
                 "--timeout", "5",
             ])
@@ -59,7 +56,6 @@ class TestFetchCommand(unittest.TestCase):
         self.assertEqual(result.exit_code, 0, result.output)
         args, kwargs = mocked.call_args
         self.assertEqual(args, ("POST", "https://api.example.com/users"))
-        self.assertEqual(kwargs["query"], {"q": "test", "limit": "10"})
         self.assertEqual(kwargs["json_body"], {"name": "John"})
         self.assertIsNone(kwargs["body"])
         self.assertEqual(kwargs["timeout"], 5.0)
@@ -108,11 +104,6 @@ class TestFetchCommand(unittest.TestCase):
         result = self._invoke(["https://example.com", "-H", "no-colon"])
         self.assertNotEqual(result.exit_code, 0)
         self.assertIn("invalid header", result.output)
-
-    def test_invalid_query(self):
-        result = self._invoke(["https://example.com", "-q", "no-equals"])
-        self.assertNotEqual(result.exit_code, 0)
-        self.assertIn("invalid query parameter", result.output)
 
     def test_caller_user_agent_kept_when_not_forced(self):
         with mock.patch(

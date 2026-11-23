@@ -134,7 +134,6 @@ fetch 子命令与 MCP 工具 `fetch` 的功能等价，用于在终端演示请
 python -m mcp_server_requests fetch <URL> \
   [-X {GET,POST,PUT,PATCH,DELETE}] \
   [-H "Name: value"]... \
-  [-q key=value]... \
   [-d TEXT] \
   [--json-body JSON] \
   [--return-format {raw,basic_clean,strict_clean,markdown}] \
@@ -144,7 +143,6 @@ python -m mcp_server_requests fetch <URL> \
 **选项说明：**
 - `-X, --method`：HTTP 方法（默认：GET）
 - `-H, --header`：自定义请求头，格式 `"Name: value"`，可重复
-- `-q, --query`：查询参数，格式 `key=value`，可重复；同名参数后者覆盖前者
 - `-d, --body`：文本请求体，不能与 `--json-body` 同时使用
 - `--json-body`：JSON 请求体，不能与 `--body` 同时使用
 - `--return-format`：返回内容格式（默认：markdown）
@@ -160,8 +158,8 @@ python -m mcp_server_requests fetch <URL> \
 # 抓取网页并转换为 markdown
 python -m mcp_server_requests fetch https://example.com
 
-# 带查询参数
-python -m mcp_server_requests fetch https://api.example.com/search -q q=test -q limit=10
+# 查询参数直接写在 URL 里
+python -m mcp_server_requests fetch "https://api.example.com/search?q=test&limit=10"
 
 # POST JSON
 python -m mcp_server_requests fetch https://api.example.com/users \
@@ -184,7 +182,6 @@ python -m mcp_server_requests fetch https://example.com -H "user-agent: My-Agent
 - **url**（必填，字符串）：目标 URL，支持 HTTP/HTTPS 协议
 - **method**（可选，枚举）：HTTP 方法，默认为 "GET"
   - `"GET"`、`"POST"`、`"PUT"`、`"PATCH"`、`"DELETE"`
-- **query**（可选，对象）：URL 查询参数，键值对形式，自动 URL 编码
 - **headers**（可选，对象）：自定义 HTTP 请求头
 - **body**（可选，字符串）：文本格式的请求体数据，与 json_body 参数互斥
 - **json_body**（可选，任意类型）：JSON 格式的请求体数据，与 body 参数互斥
@@ -200,6 +197,7 @@ python -m mcp_server_requests fetch https://example.com -H "user-agent: My-Agent
 - 使用 `json_body` 时，`Content-Type` 自动设置为 `application/json`
 - 使用 `body` 时，建议手动设置合适的 `Content-Type`
 - `return_format` 只对 `text/html` 生效；JSON 和其他文本响应原样返回
+- 查询串直接写在 `url` 里，例如 `https://api.example.com/search?q=test&limit=10`。不要预先编码；中文、空格等字符会由服务器统一编码
 
 **返回值：** 完整 HTTP 响应（状态行、响应头、响应体）
 
@@ -215,7 +213,6 @@ python -m mcp_server_requests fetch https://example.com -H "user-agent: My-Agent
   - 相对路径以 `--workspace` 为基准，且必须落在某个可写根内
 - **method**（可选，枚举）：HTTP 方法，默认为 "GET"
   - `"GET"`、`"POST"`、`"PUT"`、`"PATCH"`、`"DELETE"`
-- **query**（可选，对象）：URL 查询参数，键值对形式，自动 URL 编码
 - **headers**（可选，对象）：自定义 HTTP 请求头
 - **body**（可选，字符串）：文本格式的请求体数据，与 json_body 参数互斥
 - **json_body**（可选，任意类型）：JSON 格式的请求体数据，与 body 参数互斥
@@ -227,6 +224,7 @@ python -m mcp_server_requests fetch https://example.com -H "user-agent: My-Agent
 - 使用 `json_body` 时，`Content-Type` 自动设置为 `application/json`
 - 使用 `body` 时，建议手动设置合适的 `Content-Type`
 - `return_format` 只对 `text/html` 生效；JSON 和其他文本响应原样保存
+- 查询串直接写在 `url` 里，不要预先编码；中文、空格等字符会由服务器统一编码
 - 请求部分与 `fetch` 工具一致，UA 规则也一致
 
 **特性：**

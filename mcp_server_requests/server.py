@@ -315,7 +315,6 @@ def create_mcp_server(
         url: Annotated[str, "(require) The URL to fetch content from or send the request to"],
         *,
         method: Annotated[Literal['GET', 'POST', 'PUT', 'PATCH', 'DELETE'], "(optional, Defaults to \"GET\") HTTP method to use for the request"] = "GET",
-        query: Annotated[Optional[Dict[str, str | int | float]], "(optional) Query parameters to append to the URL"] = None,
         headers: Annotated[Optional[Dict[str, str]], "(optional) Custom HTTP request headers"] = None,
         body: Annotated[Optional[str], "(optional) Text data to send in the request body. Cannot be used with 'json_body'"] = None,
         json_body: Annotated[Optional[Any], "(optional) JSON to send in the request body. Cannot be used with 'body'"] = None,
@@ -327,7 +326,7 @@ def create_mcp_server(
         Function/Features:
         - Retrieves web content from any HTTP/HTTPS URL (default method is GET)
         - Sends requests using any standard method (GET, POST, PUT, PATCH, DELETE)
-        - Allows custom query parameters and HTTP headers
+        - Allows custom HTTP headers
         - Supports text and JSON request bodies
         - Returns the complete HTTP response including status line, headers, and body
         - Converts or cleans HTML content to reduce token usage
@@ -335,7 +334,6 @@ def create_mcp_server(
         Args:
             url (str): The URL to fetch content from or send the request to.
             method ('GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE', optional): HTTP method to use. Defaults to "GET".
-            query ({ [string]: string | number }, optional): Query parameters to append to the URL. Values are automatically converted to strings.
             headers ({ [string]: string }, optional): Custom HTTP request headers.
             body (str, optional): Text data to send in the request body. Cannot be used with 'json_body'.
             json_body (Any JSON, optional): Data to serialize as JSON and send in the request body. Cannot be used with 'body'.
@@ -346,7 +344,7 @@ def create_mcp_server(
         - 'body' and 'json_body' parameters are mutually exclusive - use only one
         - When using 'json_body', the Content-Type header is automatically set to 'application/json'
         - When using 'body', you may need to set an appropriate Content-Type header manually
-        - Query parameters are URL-encoded automatically and appended to the URL
+        - Query parameters must be written directly in the URL; do not pre-encode values
         - 'return_format' only affects text/html responses:
           - "raw": Returns unmodified HTML
           - "basic_clean": Removes non-displaying tags (script, style, meta, etc.) while preserving structure
@@ -361,8 +359,8 @@ def create_mcp_server(
             // Fetch raw HTML content
             fetch({url: "https://example.com", return_format: "raw"})
 
-            // GET request with query parameters
-            fetch({url: "https://api.example.com/search", query: {"q": "test", "limit": 10}})
+            // GET request with query parameters directly in the URL
+            fetch({url: "https://api.example.com/search?q=test&limit=10"})
 
             // POST request with JSON data
             fetch({url: "https://api.example.com/users", method: "POST", json_body: {"name": "John", "age": 30}})
@@ -388,7 +386,6 @@ def create_mcp_server(
         try:
             response = http_request(
                 method, url,
-                query=query,
                 headers=merge_user_agent(headers, ua, ua_force),
                 body=body,
                 json_body=json_body,
@@ -432,7 +429,6 @@ def create_mcp_server(
             file_path: Annotated[str, "(require) File path where the content will be saved. Must be inside a writable directory configured on the server."],
             *,
             method: Annotated[Literal['GET', 'POST', 'PUT', 'PATCH', 'DELETE'], "(optional, Defaults to \"GET\") HTTP method to use for the request"] = "GET",
-            query: Annotated[Optional[Dict[str, str | int | float]], "(optional) Query parameters to append to the URL"] = None,
             headers: Annotated[Optional[Dict[str, str]], "(optional) Custom HTTP request headers"] = None,
             body: Annotated[Optional[str], "(optional) Text data to send in the request body. Cannot be used with 'json_body'"] = None,
             json_body: Annotated[Optional[Any], "(optional) JSON to send in the request body. Cannot be used with 'body'"] = None,
@@ -444,7 +440,7 @@ def create_mcp_server(
             Function/Features:
             - Retrieves web content from any HTTP/HTTPS URL (default method is GET) and saves it to a file
             - Sends requests using any standard method (GET, POST, PUT, PATCH, DELETE)
-            - Allows custom query parameters and HTTP headers
+            - Allows custom HTTP headers
             - Supports text and JSON request bodies
             - Automatic directory creation for nested file paths
 
@@ -452,7 +448,6 @@ def create_mcp_server(
                 url (str): The URL to fetch content from or send the request to.
                 file_path (str): File path where the content will be saved. Must be inside a writable directory configured on the server.
                 method ('GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE', optional): HTTP method to use. Defaults to "GET".
-                query ({ [string]: string | number }, optional): Query parameters to append to the URL.
                 headers ({ [string]: string }, optional): Custom HTTP request headers.
                 body (str, optional): Text data to send in the request body. Cannot be used with 'json_body'.
                 json_body (Any JSON, optional): Data to serialize as JSON and send in the request body. Cannot be used with 'body'.
@@ -467,7 +462,7 @@ def create_mcp_server(
             - 'body' and 'json_body' parameters are mutually exclusive - use only one
             - When using 'json_body', the Content-Type header is automatically set to 'application/json'
             - When using 'body', you may need to set an appropriate Content-Type header manually
-            - Query parameters are URL-encoded automatically and appended to the URL
+            - Query parameters must be written directly in the URL; do not pre-encode values
             - The target path must be inside a writable directory configured on the server
             - Path validation happens before the request; invalid paths never trigger a request
             - Automatically creates parent directories if they don't exist
@@ -488,6 +483,9 @@ def create_mcp_server(
 
                 // POST JSON and save the response body
                 fetch_to_file({url: "https://api.example.com/users", file_path: "data/created.json", method: "POST", json_body: {"name": "John"}})
+
+                // Query parameters directly in the URL
+                fetch_to_file({url: "https://api.example.com/search?q=test&limit=10", file_path: "data/results.json"})
             """
             if len(url) == 0:
                 return "Error: url must not be empty"
@@ -502,7 +500,6 @@ def create_mcp_server(
             try:
                 response = http_request(
                     method, url,
-                    query=query,
                     headers=merge_user_agent(headers, ua, ua_force),
                     body=body,
                     json_body=json_body,

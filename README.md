@@ -10,14 +10,14 @@ An MCP server that provides HTTP request capabilities, enabling LLMs to fetch an
 
 - **fetch**: Generic HTTP request tool
   - Fetches web content with GET by default, and sends POST/PUT/PATCH/DELETE requests
-  - Supports query parameters, custom request headers, text and JSON request bodies
+  - Supports custom request headers, text and JSON request bodies
   - Returns complete HTTP response information (status, headers, body) for LLMs
   - Supports converting web content to Markdown format
   - Supports filtering web content (non-visual elements like script, style, meta)
   - Feeds into LLM context, reducing token consumption through Markdown conversion or filtering non-visual elements
 - **fetch_to_file**: Web content saving tool
   - Disabled by default; enable it with `--enable-fetch-to-file`
-  - Supports the same request capabilities as fetch (method, query, headers, body, json_body)
+  - Supports the same request capabilities as fetch (method, headers, body, json_body)
   - File writes are limited to the configured writable directories, controlled by `--workspace` and `--writable-dir`
   - Web content is not fed into LLM context, avoiding excessive token consumption
 - Supports custom User-Agent
@@ -138,7 +138,6 @@ The fetch subcommand is equivalent to the MCP `fetch` tool functionality, used t
 python -m mcp_server_requests fetch <URL> \
   [-X {GET,POST,PUT,PATCH,DELETE}] \
   [-H "Name: value"]... \
-  [-q key=value]... \
   [-d TEXT] \
   [--json-body JSON] \
   [--return-format {raw,basic_clean,strict_clean,markdown}] \
@@ -148,7 +147,6 @@ python -m mcp_server_requests fetch <URL> \
 **Options:**
 - `-X, --method`: HTTP method (default: GET)
 - `-H, --header`: Custom request header in `"Name: value"` format (repeatable)
-- `-q, --query`: Query parameter in `key=value` format (repeatable; later values override earlier ones for the same key)
 - `-d, --body`: Text request body; cannot be used with `--json-body`
 - `--json-body`: JSON request body; cannot be used with `--body`
 - `--return-format`: Return content format (default: markdown)
@@ -164,8 +162,8 @@ python -m mcp_server_requests fetch <URL> \
 # Fetch a web page as markdown
 python -m mcp_server_requests fetch https://example.com
 
-# With query parameters
-python -m mcp_server_requests fetch https://api.example.com/search -q q=test -q limit=10
+# Query parameters directly in the URL
+python -m mcp_server_requests fetch "https://api.example.com/search?q=test&limit=10"
 
 # POST JSON
 python -m mcp_server_requests fetch https://api.example.com/users \
@@ -188,7 +186,6 @@ Fetch web content, or send a request with any HTTP method and get the complete r
 - **url** (required, string): Target URL, supports HTTP/HTTPS protocols
 - **method** (optional, enum): HTTP method, defaults to "GET"
   - `"GET"`, `"POST"`, `"PUT"`, `"PATCH"`, `"DELETE"`
-- **query** (optional, object): URL query parameters as key-value pairs, automatically URL-encoded
 - **headers** (optional, object): Custom HTTP request headers
 - **body** (optional, string): Text format request body data, mutually exclusive with json_body parameter
 - **json_body** (optional, any type): JSON format request body data, mutually exclusive with body parameter
@@ -204,6 +201,7 @@ Fetch web content, or send a request with any HTTP method and get the complete r
 - When using `json_body` parameter, `Content-Type: application/json` is automatically set
 - When using `body` parameter, it's recommended to manually set appropriate `Content-Type`
 - `return_format` only affects `text/html` responses; JSON and other text responses are returned as-is
+- Write query parameters directly in the URL, for example `https://api.example.com/search?q=test&limit=10`. Do not pre-encode; Chinese characters and spaces are encoded by the server
 
 **Returns:** Complete HTTP response (status line, response headers, and response body)
 
@@ -219,7 +217,6 @@ Fetch content from the specified URL, or send any HTTP request, and save the res
   - Relative paths are resolved against `--workspace` and must stay inside a writable root
 - **method** (optional, enum): HTTP method, defaults to "GET"
   - `"GET"`, `"POST"`, `"PUT"`, `"PATCH"`, `"DELETE"`
-- **query** (optional, object): URL query parameters as key-value pairs, automatically URL-encoded
 - **headers** (optional, object): Custom HTTP request headers
 - **body** (optional, string): Text format request body data, mutually exclusive with json_body parameter
 - **json_body** (optional, any type): JSON format request body data, mutually exclusive with body parameter
@@ -231,6 +228,7 @@ Fetch content from the specified URL, or send any HTTP request, and save the res
 - When using `json_body` parameter, `Content-Type: application/json` is automatically set
 - When using `body` parameter, it's recommended to manually set appropriate `Content-Type`
 - `return_format` only affects `text/html` responses; JSON and other text responses are saved as-is
+- Write query parameters directly in the URL; do not pre-encode values
 - Request behavior is the same as the `fetch` tool, including User-Agent rules
 
 **Features:**

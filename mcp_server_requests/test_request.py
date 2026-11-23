@@ -7,86 +7,9 @@ from .request import (
     Response,
     RequestError,
     ArgumentError,
-    merge_query_to_url,
     HTTP_METHODS,
     VERSION_MAP
 )
-
-
-class TestMergeQueryToUrl(unittest.TestCase):
-    """Test merge_query_to_url function"""
-
-    def test_merge_query_to_existing_url(self):
-        """Test adding new parameters to URL with existing query parameters"""
-        url = "https://example.com/path?existing=value"
-        query_dict = {"new": "param", "another": "123"}
-        result = merge_query_to_url(url, query_dict)
-
-        self.assertIn("existing=value", result)
-        self.assertIn("new=param", result)
-        self.assertIn("another=123", result)
-
-    def test_merge_query_to_url_without_existing(self):
-        """Test adding parameters to URL without existing query parameters"""
-        url = "https://example.com/path"
-        query_dict = {"param1": "value1", "param2": "value2"}
-        result = merge_query_to_url(url, query_dict)
-
-        self.assertIn("param1=value1", result)
-        self.assertIn("param2=value2", result)
-        self.assertIn("?", result)
-
-    def test_merge_query_override_existing(self):
-        """Test adding parameters to URL with existing query parameters"""
-        url = "https://example.com/path?param=old"
-        query_dict = {"param": "new"}
-        result = merge_query_to_url(url, query_dict)
-
-        # The current implementation keeps both old and new values
-        self.assertIn("param=new", result)
-        self.assertIn("param=old", result)
-
-    def test_merge_query_invalid_types(self):
-        """Test invalid query parameter types"""
-        url = "https://example.com"
-        # Use None as invalid type
-        query_dict = {"param": None}
-
-        with self.assertRaises(ArgumentError) as cm:
-            merge_query_to_url(url, query_dict)
-        self.assertIn("invalid value for query parameter", str(cm.exception))
-
-    def test_merge_query_various_numeric_types(self):
-        """Test various numeric types for query parameters"""
-        url = "https://example.com"
-        query_dict = {"int": 42, "float": 3.14, "str": "value"}
-        result = merge_query_to_url(url, query_dict)
-
-        self.assertIn("int=42", result)
-        self.assertIn("float=3.14", result)
-        self.assertIn("str=value", result)
-
-    def test_merge_query_unicode_characters(self):
-        """Test query parameters with Unicode characters (e.g., Chinese)"""
-        url = "https://example.com"
-        query_dict = {"query": "测试", "chinese": "中文"}
-        result = merge_query_to_url(url, query_dict)
-
-        # Should properly encode Unicode characters
-        self.assertIn("query=%E6%B5%8B%E8%AF%95", result)  # URL-encoded "测试"
-        self.assertIn("chinese=%E4%B8%AD%E6%96%87", result)  # URL-encoded "中文"
-
-    def test_url_with_unicode_path(self):
-        """Test URL with Unicode characters in path"""
-        url = "https://example.com/测试路径"
-        query_dict = {"param": "value"}
-
-        # This should not raise an encoding error
-        try:
-            result = merge_query_to_url(url, query_dict)
-            self.assertIn("param=value", result)
-        except Exception as e:
-            self.fail(f"merge_query_to_url failed with Unicode path: {e}")
 
 
 class TestResponse(unittest.TestCase):
@@ -218,26 +141,6 @@ class TestHttpRequest(unittest.TestCase):
         request = mock_urlopen.call_args[0][0]
         self.assertEqual(request.method, "POST")
         self.assertEqual(request.data, b"binary data")
-
-    @patch('mcp_server_requests.request.urllib.request.urlopen')
-    def test_http_request_with_query_params(self, mock_urlopen):
-        """Test request with query parameters"""
-        mock_response = Mock()
-        mock_response.version = 11
-        mock_response.status = 200
-        mock_response.reason = "OK"
-        mock_response.getheaders.return_value = []
-        mock_response.read.return_value = b'Success'
-        mock_urlopen.return_value = mock_response
-
-        query_params = {"param1": "value1", "param2": 42}
-        http_request("GET", self.base_url, query=query_params)
-
-        # Verify URL contains query parameters
-        mock_urlopen.assert_called_once()
-        request = mock_urlopen.call_args[0][0]
-        self.assertIn("param1=value1", request.get_full_url())
-        self.assertIn("param2=42", request.get_full_url())
 
     @patch('mcp_server_requests.request.urllib.request.urlopen')
     def test_http_request_with_headers(self, mock_urlopen):

@@ -1,11 +1,11 @@
 from dataclasses import dataclass
-from typing import Mapping, Optional, Literal, Union
+from typing import Optional, Union
 import json
 
 import urllib.error
 import urllib.request
 import http.client
-from urllib.parse import parse_qsl, quote, urlparse, urlencode, urlunparse
+from urllib.parse import quote
 
 
 HTTP_METHODS = ["GET", "POST", "PUT", "PATCH", "DELETE"]
@@ -52,37 +52,10 @@ class ArgumentError(RequestError):
     pass
 
 
-def merge_query_to_url(url: str, query_dict: Mapping[str, str | int | float]) -> str:
-    parsed_url = urlparse(url)
-
-    original_query = parse_qsl(parsed_url.query)
-
-    query_single: set[tuple[str, str | int | float]] = set(original_query)
-
-    for k, v in query_dict.items():
-        if not isinstance(v, (str, int, float)):
-            raise ArgumentError(f"invalid value for query parameter {k}: {v}. value must be a string, int, or float.")
-    query_single.update(query_dict.items())
-
-    new_query = urlencode(list(query_single), encoding='utf-8')
-
-    new_url = urlunparse((
-        parsed_url.scheme,
-        parsed_url.netloc,
-        parsed_url.path,
-        parsed_url.params,
-        new_query,
-        parsed_url.fragment
-    ))
-
-    return new_url
-
-
 def http_request(
     method: str,
     url: str,
     *,
-    query: Optional[dict] = None,
     body: Optional[Union[str, bytes, bytearray]] = None,
     json_body: Optional[dict] = None,
     headers: Optional[dict] = None,
@@ -106,14 +79,6 @@ def http_request(
 
     if body is not None and json_body is not None:
         raise ArgumentError("Both body and json_body cannot be provided at the same time")
-
-    try:
-        if query is not None:
-            url = merge_query_to_url(url, query)
-    except ArgumentError as e:
-        raise e from e
-    except Exception as e:
-        raise ArgumentError("Failed to splicing URL and query") from e
 
     body_bytes = None
     if body is not None:
