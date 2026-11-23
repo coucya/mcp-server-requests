@@ -332,6 +332,16 @@ def create_mcp_server(
         - Returns the complete HTTP response including status line, headers, and body
         - Converts or cleans HTML content to reduce token usage
 
+        Args:
+            url (str): The URL to fetch content from or send the request to.
+            method ('GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE', optional): HTTP method to use. Defaults to "GET".
+            query ({ [string]: string | number }, optional): Query parameters to append to the URL. Values are automatically converted to strings.
+            headers ({ [string]: string }, optional): Custom HTTP request headers.
+            body (str, optional): Text data to send in the request body. Cannot be used with 'json_body'.
+            json_body (Any JSON, optional): Data to serialize as JSON and send in the request body. Cannot be used with 'body'.
+            return_format ('raw' | 'basic_clean' | 'strict_clean' | 'markdown', optional): Processing format for HTML content. Defaults to "markdown".
+            timeout (float, optional): Request timeout in seconds. Defaults to 30. Use null for no timeout.
+
         Notes:
         - 'body' and 'json_body' parameters are mutually exclusive - use only one
         - When using 'json_body', the Content-Type header is automatically set to 'application/json'
@@ -343,16 +353,6 @@ def create_mcp_server(
           - "strict_clean": Removes non-displaying tags and most HTML attributes, keeping only essential structure
           - "markdown": Converts HTML content to clean, readable Markdown format
         - JSON and other text responses are returned as-is, without HTML processing
-
-        Args:
-            url (str): The URL to fetch content from or send the request to.
-            method ('GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE', optional): HTTP method to use. Defaults to "GET".
-            query ({ [string]: string | number }, optional): Query parameters to append to the URL. Values are automatically converted to strings.
-            headers ({ [string]: string }, optional): Custom HTTP request headers.
-            body (str, optional): Text data to send in the request body. Cannot be used with 'json_body'.
-            json_body (Any JSON, optional): Data to serialize as JSON and send in the request body. Cannot be used with 'body'.
-            return_format ('raw' | 'basic_clean' | 'strict_clean' | 'markdown', optional): Processing format for HTML content. Defaults to "markdown".
-            timeout (float, optional): Request timeout in seconds. Defaults to 30. Use null for no timeout.
 
         Examples:
             // Fetch a web page as markdown (default)
@@ -448,19 +448,6 @@ def create_mcp_server(
             - Supports text and JSON request bodies
             - Automatic directory creation for nested file paths
 
-            Notes:
-            - 'body' and 'json_body' parameters are mutually exclusive - use only one
-            - When using 'json_body', the Content-Type header is automatically set to 'application/json'
-            - When using 'body', you may need to set an appropriate Content-Type header manually
-            - Query parameters are URL-encoded automatically and appended to the URL
-            - The target path must be inside a writable directory configured on the server
-            - Path validation happens before the request; invalid paths never trigger a request
-            - Automatically creates parent directories if they don't exist
-            - Existing files are never overwritten
-            - Uses UTF-8 encoding for all saved files
-            - Only the response body is written; status line and headers are omitted
-            - 'return_format' only affects text/html responses
-
             Args:
                 url (str): The URL to fetch content from or send the request to.
                 file_path (str): File path where the content will be saved. Must be inside a writable directory configured on the server.
@@ -475,6 +462,19 @@ def create_mcp_server(
                   - "strict_clean": Saves HTML with non-displaying tags and most HTML attributes removed, keeping only essential structure
                   - "markdown": Converts HTML content to clean, readable Markdown format before saving
                 timeout (float, optional): Request timeout in seconds. Defaults to 30. Use null for no timeout.
+
+            Notes:
+            - 'body' and 'json_body' parameters are mutually exclusive - use only one
+            - When using 'json_body', the Content-Type header is automatically set to 'application/json'
+            - When using 'body', you may need to set an appropriate Content-Type header manually
+            - Query parameters are URL-encoded automatically and appended to the URL
+            - The target path must be inside a writable directory configured on the server
+            - Path validation happens before the request; invalid paths never trigger a request
+            - Automatically creates parent directories if they don't exist
+            - Existing files are never overwritten
+            - Uses UTF-8 encoding for all saved files
+            - Only the response body is written; status line and headers are omitted
+            - 'return_format' only affects text/html responses
 
             Examples:
                 // Save web page as markdown
