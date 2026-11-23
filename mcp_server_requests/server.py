@@ -127,13 +127,35 @@ def get_user_agent(
     return ua
 
 
+def merge_user_agent(
+    headers: Dict[str, str] | None,
+    ua: str,
+    force: bool | None = None,
+) -> Dict[str, str]:
+    """Merge the server User-Agent into caller-provided headers.
+
+    Matching is case-insensitive. When force is true, every existing
+    User-Agent variant is removed and replaced with the server UA.
+    """
+    merged = dict(headers or {})
+    if not ua:
+        return merged
+
+    ua_keys = [key for key in merged if key.lower() == "user-agent"]
+    if force or not ua_keys:
+        for key in ua_keys:
+            del merged[key]
+        merged["User-Agent"] = ua
+    return merged
+
+
 def format_response_result(
     response: Response,
     *,
     format_status: bool | None = None,
     format_headers: bool | None = None,
     format_content: bool | None = None,
-    return_content: Literal["raw", "basic_clean", "strict_clean", "markdown"] = "raw",
+    return_format: Literal["raw", "basic_clean", "strict_clean", "markdown"] = "raw",
 ) -> str:
     http_version = response.version
     status = response.status_code
@@ -163,13 +185,13 @@ def format_response_result(
             raise FormatResponseError(response, err_message)
 
         if content_type.startswith("text/html"):
-            if return_content == "raw":
+            if return_format == "raw":
                 pass
-            elif return_content == "basic_clean":
+            elif return_format == "basic_clean":
                 content = clean_html(content, allowed_attrs=True)
-            elif return_content == "strict_clean":
+            elif return_format == "strict_clean":
                 content = clean_html(content, allowed_attrs=("id", "src", "href"))
-            elif return_content == "markdown":
+            elif return_format == "markdown":
                 content = html_to_markdown(content)
     else:
         content = ""
@@ -291,42 +313,86 @@ def create_mcp_server(
 
     @mcp.tool(name="fetch")
     def fetch_tool(
-        url: Annotated[str, "(require) The URL to fetch content from"],
-        return_content: Annotated[Literal['raw', 'basic_clean', 'strict_clean', 'markdown'], "(optional, Defaults to \"markdown\") processing format for HTML content"] = "markdown",
+        url: Annotated[str, "(require) The URL to fetch content from or send the request to"],
+        *,
+        method: Annotated[Literal['GET', 'POST', 'PUT', 'PATCH', 'DELETE'], "(optional, Defaults to \"GET\") HTTP method to use for the request"] = "GET",
+        query: Annotated[Optional[Dict[str, str | int | float]], "(optional) Query parameters to append to the URL"] = None,
+        headers: Annotated[Optional[Dict[str, str]], "(optional) Custom HTTP request headers"] = None,
+        body: Annotated[Optional[str], "(optional) Text data to send in the request body. Cannot be used with 'json_body'"] = None,
+        json_body: Annotated[Optional[Any], "(optional) JSON to send in the request body. Cannot be used with 'body'"] = None,
+        return_format: Annotated[Literal['raw', 'basic_clean', 'strict_clean', 'markdown'], "(optional, Defaults to \"markdown\") processing format for HTML content"] = "markdown",
         timeout: Annotated[float | None, "(optional, Defaults to 30) request timeout in seconds; use null for no timeout"] = 30.0,
     ) -> str:
-        """Fetch web page content
+        """Fetch web content or send an HTTP request
 
         Function/Features:
-        - Retrieves web page content from any HTTP/HTTPS URL
+        - Retrieves web content from any HTTP/HTTPS URL (default method is GET)
+        - Sends requests using any standard method (GET, POST, PUT, PATCH, DELETE)
+        - Allows custom query parameters and HTTP headers
+        - Supports text and JSON request bodies
+        - Returns the complete HTTP response including status line, headers, and body
+        - Converts or cleans HTML content to reduce token usage
+
+        Notes:
+        - 'body' and 'json_body' parameters are mutually exclusive - use only one
+        - When using 'json_body', the Content-Type header is automatically set to 'application/json'
+        - When using 'body', you may need to set an appropriate Content-Type header manually
+        - Query parameters are URL-encoded automatically and appended to the URL
+        - 'return_format' only affects text/html responses:
+          - "raw": Returns unmodified HTML
+          - "basic_clean": Removes non-displaying tags (script, style, meta, etc.) while preserving structure
+          - "strict_clean": Removes non-displaying tags and most HTML attributes, keeping only essential structure
+          - "markdown": Converts HTML content to clean, readable Markdown format
+        - JSON and other text responses are returned as-is, without HTML processing
 
         Args:
-            url (str): The URL to fetch content from.
-            return_content ('raw' | 'basic_clean' | 'strict_clean' | 'markdown', optional):
-                Processing format for HTML content. Defaults to "markdown".
-                - "raw": Returns unmodified HTML content with full response headers
-                - "basic_clean": Removes non-displaying tags (script, style, meta, etc.) while preserving structure
-                - "strict_clean": Removes non-displaying tags and most HTML attributes, keeping only essential structure
-                - "markdown": Converts HTML content to clean, readable Markdown format
+            url (str): The URL to fetch content from or send the request to.
+            method ('GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE', optional): HTTP method to use. Defaults to "GET".
+            query ({ [string]: string | number }, optional): Query parameters to append to the URL. Values are automatically converted to strings.
+            headers ({ [string]: string }, optional): Custom HTTP request headers.
+            body (str, optional): Text data to send in the request body. Cannot be used with 'json_body'.
+            json_body (Any JSON, optional): Data to serialize as JSON and send in the request body. Cannot be used with 'body'.
+            return_format ('raw' | 'basic_clean' | 'strict_clean' | 'markdown', optional): Processing format for HTML content. Defaults to "markdown".
             timeout (float, optional): Request timeout in seconds. Defaults to 30. Use null for no timeout.
 
         Examples:
-            // Returns content as markdown
+            // Fetch a web page as markdown (default)
             fetch({url: "https://example.com"})
 
-            // Returns raw HTML content
-            fetch({url: "https://api.example.com/data", return_content: "raw"})  
+            // Fetch raw HTML content
+            fetch({url: "https://example.com", return_format: "raw"})
+
+            // GET request with query parameters
+            fetch({url: "https://api.example.com/search", query: {"q": "test", "limit": 10}})
+
+            // POST request with JSON data
+            fetch({url: "https://api.example.com/users", method: "POST", json_body: {"name": "John", "age": 30}})
+
+            // POST request with raw text data
+            fetch({url: "https://api.example.com/log", method: "POST", body: "This is a log message"})
+
+            // PUT request
+            fetch({url: "https://api.example.com/users/123", method: "PUT", json_body: {"name": "John Updated"}})
+
+            // PATCH request
+            fetch({url: "https://api.example.com/users/123", method: "PATCH", json_body: {"age": 31}})
+
+            // DELETE request
+            fetch({url: "https://api.example.com/users/123", method: "DELETE"})
+
+            // Request with custom headers
+            fetch({url: "https://api.example.com/secure", method: "POST", headers: {"Authorization": "Bearer token"}, json_body: {"key": "value"}})
         """
         if len(url) == 0:
             return "Error: url must not be empty"
 
         try:
             response = http_request(
-                "GET", url,
-                query=None,
-                headers={"User-Agent": ua},
-                data=None,
-                json_=None,
+                method, url,
+                query=query,
+                headers=merge_user_agent(headers, ua, ua_force),
+                body=body,
+                json_body=json_body,
                 timeout=timeout,
             )
         except RequestError as e:
@@ -341,7 +407,7 @@ def create_mcp_server(
                 format_status=True,
                 format_headers=True,
                 format_content=True,
-                return_content=return_content,
+                return_format=return_format,
             )
         except FormatResponseError as e:
             res = format_response_result(
@@ -349,7 +415,7 @@ def create_mcp_server(
                 format_status=True,
                 format_headers=True,
                 format_content=False,
-                return_content=return_content,
+                return_format=return_format,
             )
 
             return f"An error occurred while processing the response from \"{url}\":\r\n"\
@@ -363,28 +429,48 @@ def create_mcp_server(
     if enable_fetch_to_file:
         @mcp.tool(name="fetch_to_file")
         def fetch_to_file_tool(
-            url: Annotated[str, "(require) The URL to fetch content from"],
+            url: Annotated[str, "(require) The URL to fetch content from or send the request to"],
             file_path: Annotated[str, "(require) File path where the content will be saved. Must be inside a writable directory configured on the server."],
             *,
-            return_content: Annotated[Literal['raw', 'basic_clean', 'strict_clean', 'markdown'], "(optional, Defaults to \"markdown\") processing format for HTML content"] = "markdown",
+            method: Annotated[Literal['GET', 'POST', 'PUT', 'PATCH', 'DELETE'], "(optional, Defaults to \"GET\") HTTP method to use for the request"] = "GET",
+            query: Annotated[Optional[Dict[str, str | int | float]], "(optional) Query parameters to append to the URL"] = None,
+            headers: Annotated[Optional[Dict[str, str]], "(optional) Custom HTTP request headers"] = None,
+            body: Annotated[Optional[str], "(optional) Text data to send in the request body. Cannot be used with 'json_body'"] = None,
+            json_body: Annotated[Optional[Any], "(optional) JSON to send in the request body. Cannot be used with 'body'"] = None,
+            return_format: Annotated[Literal['raw', 'basic_clean', 'strict_clean', 'markdown'], "(optional, Defaults to \"markdown\") processing format for HTML content"] = "markdown",
             timeout: Annotated[float | None, "(optional, Defaults to 30) request timeout in seconds; use null for no timeout"] = 30.0,
         ) -> str:
-            """Fetch web content and save it to a file
+            """Fetch web content or send an HTTP request, then save the response body to a file
 
             Function/Features:
-            - Retrieves web content from any HTTP/HTTPS URL and saves it to a file
+            - Retrieves web content from any HTTP/HTTPS URL (default method is GET) and saves it to a file
+            - Sends requests using any standard method (GET, POST, PUT, PATCH, DELETE)
+            - Allows custom query parameters and HTTP headers
+            - Supports text and JSON request bodies
             - Automatic directory creation for nested file paths
 
             Notes:
+            - 'body' and 'json_body' parameters are mutually exclusive - use only one
+            - When using 'json_body', the Content-Type header is automatically set to 'application/json'
+            - When using 'body', you may need to set an appropriate Content-Type header manually
+            - Query parameters are URL-encoded automatically and appended to the URL
             - The target path must be inside a writable directory configured on the server
+            - Path validation happens before the request; invalid paths never trigger a request
             - Automatically creates parent directories if they don't exist
             - Existing files are never overwritten
             - Uses UTF-8 encoding for all saved files
+            - Only the response body is written; status line and headers are omitted
+            - 'return_format' only affects text/html responses
 
             Args:
-                url (str): The URL to fetch content from.
+                url (str): The URL to fetch content from or send the request to.
                 file_path (str): File path where the content will be saved. Must be inside a writable directory configured on the server.
-                return_content ('raw' | 'basic_clean' | 'strict_clean' | 'markdown', optional): Processing format for HTML content. Defaults to "markdown".
+                method ('GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE', optional): HTTP method to use. Defaults to "GET".
+                query ({ [string]: string | number }, optional): Query parameters to append to the URL.
+                headers ({ [string]: string }, optional): Custom HTTP request headers.
+                body (str, optional): Text data to send in the request body. Cannot be used with 'json_body'.
+                json_body (Any JSON, optional): Data to serialize as JSON and send in the request body. Cannot be used with 'body'.
+                return_format ('raw' | 'basic_clean' | 'strict_clean' | 'markdown', optional): Processing format for HTML content. Defaults to "markdown".
                   - "raw": Saves unmodified HTML content
                   - "basic_clean": Saves HTML with non-displaying tags removed (script, style, etc.) while preserving structure
                   - "strict_clean": Saves HTML with non-displaying tags and most HTML attributes removed, keeping only essential structure
@@ -396,10 +482,13 @@ def create_mcp_server(
                 fetch_to_file({url: "https://example.com", file_path: "content/example.md"})
 
                 // Save raw HTML content
-                fetch_to_file({url: "https://api.example.com/data", file_path: "data/response.html", return_content: "raw"})
+                fetch_to_file({url: "https://api.example.com/data", file_path: "data/response.html", return_format: "raw"})
 
                 // Save cleaned content
-                fetch_to_file({url: "https://example.com/docs", file_path: "docs/cleaned.html", return_content: "strict_clean"})
+                fetch_to_file({url: "https://example.com/docs", file_path: "docs/cleaned.html", return_format: "strict_clean"})
+
+                // POST JSON and save the response body
+                fetch_to_file({url: "https://api.example.com/users", file_path: "data/created.json", method: "POST", json_body: {"name": "John"}})
             """
             if len(url) == 0:
                 return "Error: url must not be empty"
@@ -413,11 +502,11 @@ def create_mcp_server(
 
             try:
                 response = http_request(
-                    "GET", url,
-                    query=None,
-                    headers={"User-Agent": ua},
-                    data=None,
-                    json_=None,
+                    method, url,
+                    query=query,
+                    headers=merge_user_agent(headers, ua, ua_force),
+                    body=body,
+                    json_body=json_body,
                     timeout=timeout,
                 )
             except RequestError as e:
@@ -432,7 +521,7 @@ def create_mcp_server(
                     format_status=False,
                     format_headers=False,
                     format_content=True,
-                    return_content=return_content,
+                    return_format=return_format,
                 )
             except FormatResponseError as e:
                 res = format_response_result(
@@ -440,7 +529,7 @@ def create_mcp_server(
                     format_status=True,
                     format_headers=True,
                     format_content=False,
-                    return_content=return_content,
+                    return_format=return_format,
                 )
 
                 return f"An error occurred while processing the response from \"{url}\":\r\n"\
@@ -467,112 +556,5 @@ def create_mcp_server(
                 return f"An unexpected error occurred while writing the response from \"{url}\" to file \"{validated_path}\"."
 
             return f"Content from '{url}' ({len(content)} bytes) successfully written to: {validated_path}"
-
-    @mcp.tool(name="http_request")
-    def http_request_tool(
-        url: Annotated[str, "(require) Target URL for the HTTP request"],
-        *,
-        method: Annotated[Literal['GET', 'POST', 'PUT', 'PATCH', 'DELETE'], "(optional, Defaults to \"GET\") HTTP method to use for the request"] = "GET",
-        query: Annotated[Optional[Dict[str, str | int | float]], "(optional) Query parameters to append to the URL"] = None,
-        headers: Annotated[Optional[Dict[str, str]], "(optional) Custom HTTP request headers"] = None,
-        data: Annotated[Optional[str], "(optional) Text data to send in the request body. Cannot be used with 'json'"] = None,
-        json: Annotated[Optional[Any], "(optional) JSON to send in the request body. Cannot be used with 'data'"] = None,
-        timeout: Annotated[float | None, "(optional, Defaults to 30) request timeout in seconds; use null for no timeout"] = 30.0,
-    ) -> str:
-        """Execute an HTTP request with the specified method
-
-        Function/Features:
-        - Sends HTTP requests using any standard method (GET, POST, PUT, PATCH, DELETE)
-        - Allows custom HTTP headers
-        - Returns **complete** HTTP response including status, headers, and body
-
-        Notes:
-        - 'data' and 'json' parameters are mutually exclusive - use only one
-        - When using 'json', the Content-Type header is automatically set to 'application/json'
-        - When using 'data', you may need to set appropriate Content-Type header manually
-        - Query parameters are URL-encoded automatically and appended to the URL
-        - The response includes the full HTTP response with status line, all headers, and body
-
-        Args:
-            url (str): Target URL for the HTTP request.
-            method ('GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'], optional): HTTP method to use. Defaults to "GET".
-            query ({ [string]: string | number }, optional): Query parameters to append to the URL. Values are automatically converted to strings. Example: {'key1': 'value1', 'key2': 2}, becomes "key1=value1&key2=2" appended to the URL.
-            headers ({ [string]: string }, optional): Custom HTTP request headers.
-            data (str, optional): Text data to send in the request body. Cannot be used with 'json'.
-            json (Any JSON, optional): Data to serialize as JSON and send in the request body. Cannot be used with 'data'.
-            timeout (float, optional): Request timeout in seconds. Defaults to 30. Use null for no timeout.
-
-        Examples:
-            // GET request (default method)
-            http_request({url: "https://api.example.com/data"})
-
-            // GET request with query parameters
-            http_request({url: "https://api.example.com/search", query: {"q": "test", "limit": 10}})
-
-            // POST request with JSON data
-            http_request({url: "https://api.example.com/users", method: "POST", json: {"name": "John", "age": 30}})
-
-            // POST request with raw text data
-            http_request({url: "https://api.example.com/log", method: "POST", data: "This is a log message"})
-
-            // PUT request
-            http_request({url: "https://api.example.com/users/123", method: "PUT", json: {"name": "John Updated", "age": 31}})
-
-            // PATCH request
-            http_request({url: "https://api.example.com/users/123", method: "PATCH", json: {"age": 31, "email": "new@example.com"}})
-
-            // DELETE request
-            http_request({url: "https://api.example.com/users/123", method: "DELETE"})
-
-            // Request with custom headers
-            http_request({url: "https://api.example.com/secure", method: "POST", headers: {"Authorization": "Bearer token"}, json: {"key": "value"}})
-        """
-
-        if len(url) == 0:
-            return "Error: url must not be empty"
-
-        try:
-            hs = dict(headers or {})
-
-            if ua:
-                if ua_force or "User-Agent" not in hs:
-                    hs["User-Agent"] = ua
-
-            response = http_request(
-                method, url,
-                query=query,
-                headers=hs,
-                data=data,
-                json_=json,
-                timeout=timeout,
-            )
-        except RequestError as e:
-            return "encountered an internal error when making a request, with the following error message:\n" \
-                f"{e.message}"
-        except Exception as e:
-            return f"An unexpected error occurred while fetching \"{url}\"."
-
-        try:
-            return format_response_result(
-                response,
-                format_status=True,
-                format_headers=True,
-                format_content=True,
-            )
-        except FormatResponseError as e:
-            res = format_response_result(
-                response,
-                format_status=True,
-                format_headers=True,
-                format_content=False,
-            )
-
-            return f"An error occurred while processing the response from \"{url}\":\r\n"\
-                f"{e.message}\r\n"\
-                "\r\n"\
-                "The following is the response result:\r\n"\
-                f"{res}"
-        except Exception as e:
-            return f"An unexpected error occurred while processing the response from \"{url}\"."
 
     return mcp

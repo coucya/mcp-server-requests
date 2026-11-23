@@ -8,19 +8,18 @@ An MCP server that provides HTTP request capabilities, enabling LLMs to fetch an
 
 ## Features
 
-- **fetch**: Web content fetching tool
+- **fetch**: Generic HTTP request tool
+  - Fetches web content with GET by default, and sends POST/PUT/PATCH/DELETE requests
+  - Supports query parameters, custom request headers, text and JSON request bodies
+  - Returns complete HTTP response information (status, headers, body) for LLMs
   - Supports converting web content to Markdown format
   - Supports filtering web content (non-visual elements like script, style, meta)
   - Feeds into LLM context, reducing token consumption through Markdown conversion or filtering non-visual elements
 - **fetch_to_file**: Web content saving tool
   - Disabled by default; enable it with `--enable-fetch-to-file`
+  - Supports the same request capabilities as fetch (method, query, headers, body, json_body)
   - File writes are limited to the configured writable directories, controlled by `--workspace` and `--writable-dir`
   - Web content is not fed into LLM context, avoiding excessive token consumption
-- **http_request**: Generic HTTP request tool
-  - Full HTTP method support (GET, POST, PUT, PATCH, DELETE)
-  - Supports custom request headers
-  - Supports text and JSON request bodies
-  - Returns complete HTTP response information (status, headers, body) for LLMs
 - Supports custom User-Agent
 - Supports random User-Agent generation
 
@@ -108,11 +107,12 @@ python -m mcp_server_requests
 - Use `--list-os-and-browser` to view available browsers and OS for `--random-user-agent`.
 
 - `--force-user-agent` option controls User-Agent priority:
-  - When `--force-user-agent` is enabled: Force using command-line specified User-Agent (via `--user-agent` or `--random-user-agent`)
+  - When `--force-user-agent` is enabled: Force using command-line specified User-Agent (via `--user-agent` or `--random-user-agent`); existing User-Agent keys in `headers` (case-insensitive) are replaced
   - When `--force-user-agent` is disabled:
-    - If LLM provides User-Agent in `headers`, use the LLM-provided one
+    - If LLM provides User-Agent in `headers` (key matching is case-insensitive), use the LLM-provided one
     - Otherwise use command-line specified User-Agent
   - If none specified, use default User-Agent: `Mozilla/5.0 (compatible; mcp-server-requests/{version})`
+- `--force-user-agent` only affects the `fetch` tool; `fetch_to_file` always uses the server User-Agent
 
 - `fetch_to_file` is disabled by default and is not registered as an MCP tool, so the model cannot see it. Enable it with `--enable-fetch-to-file`.
 - Writable roots define the scope `fetch_to_file` can write to: the `--workspace` directory plus every `--writable-dir` directory:
@@ -130,21 +130,50 @@ python -m mcp_server_requests
 
 ---
 
-### 1. **fetch - Fetch Web Content**
+### 1. **fetch - Generic HTTP Request**
 
-The fetch subcommand is equivalent to the MCP `fetch` tool functionality, used to demonstrate fetch capabilities.
+The fetch subcommand is equivalent to the MCP `fetch` tool functionality, used to demonstrate request capabilities in the terminal.
 
 ```bash
-python -m mcp_server_requests fetch <URL> [--return-content {raw,basic_clean,strict_clean,markdown}] [--timeout SECONDS]
+python -m mcp_server_requests fetch <URL> \
+  [-X {GET,POST,PUT,PATCH,DELETE}] \
+  [-H "Name: value"]... \
+  [-q key=value]... \
+  [-d TEXT] \
+  [--json-body JSON] \
+  [--return-format {raw,basic_clean,strict_clean,markdown}] \
+  [--timeout SECONDS]
 ```
 
 **Options:**
-- `--return-content`: Return content type (default: markdown)
-  - **raw**: Return raw unprocessed HTML content (includes response headers)
+- `-X, --method`: HTTP method (default: GET)
+- `-H, --header`: Custom request header in `"Name: value"` format (repeatable)
+- `-q, --query`: Query parameter in `key=value` format (repeatable; later values override earlier ones for the same key)
+- `-d, --body`: Text request body; cannot be used with `--json-body`
+- `--json-body`: JSON request body; cannot be used with `--body`
+- `--return-format`: Return content format (default: markdown)
+  - **raw**: Return raw unprocessed HTML content
   - **basic_clean**: Basic cleanup, removing non-display tags (script, style, meta, etc.) while preserving structure
   - **strict_clean**: Strict cleanup, removing non-display tags and most HTML attributes, keeping only essential structure
   - **markdown**: Convert HTML to clean Markdown format
 - `--timeout`: Request timeout in seconds (default: 30)
+
+**Examples:**
+
+```bash
+# Fetch a web page as markdown
+python -m mcp_server_requests fetch https://example.com
+
+# With query parameters
+python -m mcp_server_requests fetch https://api.example.com/search -q q=test -q limit=10
+
+# POST JSON
+python -m mcp_server_requests fetch https://api.example.com/users \
+  -X POST -H "Authorization: Bearer token" --json-body '{"name": "John"}'
+
+# Custom User-Agent
+python -m mcp_server_requests fetch https://example.com -H "user-agent: My-Agent"
+```
 
 ---
 
@@ -152,69 +181,74 @@ python -m mcp_server_requests fetch <URL> [--return-content {raw,basic_clean,str
 
 ### MCP Tool Details
 
-#### 1. **fetch** - Fetch Web Content
-Fetch content from the specified URL and return it in the specified format.
+#### 1. **fetch** - Generic HTTP Request
+Fetch web content, or send a request with any HTTP method and get the complete response.
 
 **Parameters:**
 - **url** (required, string): Target URL, supports HTTP/HTTPS protocols
-- **return_content** (optional, enum): Content processing format, defaults to "markdown"
-  - `"raw"`: Return raw HTML content with complete HTTP response headers
+- **method** (optional, enum): HTTP method, defaults to "GET"
+  - `"GET"`, `"POST"`, `"PUT"`, `"PATCH"`, `"DELETE"`
+- **query** (optional, object): URL query parameters as key-value pairs, automatically URL-encoded
+- **headers** (optional, object): Custom HTTP request headers
+- **body** (optional, string): Text format request body data, mutually exclusive with json_body parameter
+- **json_body** (optional, any type): JSON format request body data, mutually exclusive with body parameter
+- **return_format** (optional, enum): HTML content processing format, defaults to "markdown"
+  - `"raw"`: Return raw HTML content
   - `"basic_clean"`: Basic cleanup, removing non-display tags (script, style, meta, etc.) while preserving HTML structure
   - `"strict_clean"`: Strict cleanup, removing non-display tags and most HTML attributes, keeping only essential structure
   - `"markdown"`: Convert HTML content to clean Markdown format
 - **timeout** (optional, number): Request timeout in seconds, defaults to 30. Use `null` for no timeout.
 
-**Returns:** Content processed according to the specified format
+**Parameter Constraints:**
+- `body` and `json_body` parameters cannot be used together
+- When using `json_body` parameter, `Content-Type: application/json` is automatically set
+- When using `body` parameter, it's recommended to manually set appropriate `Content-Type`
+- `return_format` only affects `text/html` responses; JSON and other text responses are returned as-is
+
+**Returns:** Complete HTTP response (status line, response headers, and response body)
 
 ---
 
-#### 2. **fetch_to_file** - Fetch Web Content and Save to File
-Fetch content from the specified URL and save it to a file.
+#### 2. **fetch_to_file** - Fetch Web Content or Send a Request and Save to a File
+Fetch content from the specified URL, or send any HTTP request, and save the response body to a file.
 
 **Parameters:**
 - **url** (required, string): Target URL
 - **file_path** (required, string): File save path
   - Absolute paths must be inside one of the writable roots
   - Relative paths are resolved against `--workspace` and must stay inside a writable root
-- **return_content** (optional, enum): Content processing format, defaults to "markdown", same options as fetch tool
+- **method** (optional, enum): HTTP method, defaults to "GET"
+  - `"GET"`, `"POST"`, `"PUT"`, `"PATCH"`, `"DELETE"`
+- **query** (optional, object): URL query parameters as key-value pairs, automatically URL-encoded
+- **headers** (optional, object): Custom HTTP request headers
+- **body** (optional, string): Text format request body data, mutually exclusive with json_body parameter
+- **json_body** (optional, any type): JSON format request body data, mutually exclusive with body parameter
+- **return_format** (optional, enum): HTML content processing format, defaults to "markdown", same options as fetch tool
 - **timeout** (optional, number): Request timeout in seconds, defaults to 30. Use `null` for no timeout.
+
+**Parameter Constraints:**
+- `body` and `json_body` parameters cannot be used together
+- When using `json_body` parameter, `Content-Type: application/json` is automatically set
+- When using `body` parameter, it's recommended to manually set appropriate `Content-Type`
+- `return_format` only affects `text/html` responses; JSON and other text responses are saved as-is
+- Request behavior is the same as the `fetch` tool, including User-Agent rules
 
 **Features:**
 - Disabled by default; enable with `--enable-fetch-to-file`
 - Writes outside the configured writable roots are rejected
+- Path validation happens before the request; invalid paths never trigger a request
 - Existing files are never overwritten
 - Automatically creates parent directories for nested paths
 - All files saved with UTF-8 encoding
 - HTTP 4xx/5xx response bodies are written to the file like normal responses
 - Symlinks are resolved before the containment check
+- Only the response body is written; status line and headers are omitted
 
 **Returns:** Operation result or error message
 
 ---
 
-#### 3. **http_request** - Generic HTTP Request Tool
-Send HTTP requests using any method and get complete responses.
-
-**Parameters:**
-- **url** (required, string): Target URL
-- **method** (optional, enum): HTTP method, defaults to "GET"
-  - `"GET"`, `"POST"`, `"PUT"`, `"PATCH"`, `"DELETE"`
-- **query** (optional, object): URL query parameters as key-value pairs, automatically URL-encoded
-- **headers** (optional, object): Custom HTTP request headers
-- **data** (optional, string): Text format request body data, mutually exclusive with json parameter
-- **json** (optional, any type): JSON format request body data, mutually exclusive with data parameter
-- **timeout** (optional, number): Request timeout in seconds, defaults to 30. Use `null` for no timeout.
-
-**Parameter Constraints:**
-- `data` and `json` parameters cannot be used together
-- When using `json` parameter, `Content-Type: application/json` is automatically set
-- When using `data` parameter, it's recommended to manually set appropriate `Content-Type`
-
-**Returns:** Complete HTTP response (status line, response headers, and response body)
-
----
-
-**Note**: Individual HTTP method tools (http_get, http_post, http_put, http_patch, http_delete) have been removed and replaced by the unified **http_request** tool.
+**Note**: The `http_request` tool and the individual HTTP method tools (http_get, http_post, http_put, http_patch, http_delete) from earlier versions have been merged into the **fetch** tool.
 
 ## License
 MIT

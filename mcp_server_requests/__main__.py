@@ -1,11 +1,26 @@
+import json
 from typing import Optional, Literal
 
 import click
 
-from .server import create_mcp_server, format_response_result, get_user_agent
+from .server import create_mcp_server, format_response_result, get_user_agent, merge_user_agent
 from .ua import list_ua_browsers, list_ua_oses
 from .utils import parse
 from .request import http_request, RequestError
+
+
+def _parse_header(value: str) -> tuple[str, str]:
+    name, sep, header_value = value.partition(":")
+    if not sep or not name.strip():
+        raise click.BadParameter(f"invalid header '{value}', expected 'Name: value'")
+    return name.strip(), header_value.strip()
+
+
+def _parse_query(value: str) -> tuple[str, str]:
+    key, sep, query_value = value.partition("=")
+    if not sep or not key.strip():
+        raise click.BadParameter(f"invalid query parameter '{value}', expected 'key=value'")
+    return key.strip(), query_value
 
 
 @click.group(invoke_without_command=True)
@@ -68,7 +83,7 @@ def main(
     except RuntimeError as e:
         raise click.ClickException(str(e)) from e
 
-    context.obj = {"ua": effective_ua}
+    context.obj = {"ua": effective_ua, "force_user_agent": force_user_agent}
 
     if context.invoked_subcommand:
         return
@@ -87,27 +102,62 @@ def main(
 @main.command()
 @click.pass_context
 @click.argument("url", type=str, required=True)
-@click.option("--return-content", type=click.Choice(['raw', 'basic_clean', 'strict_clean', 'markdown']), default="markdown", help="return content type")
+@click.option("-X", "--method", type=click.Choice(['GET', 'POST', 'PUT', 'PATCH', 'DELETE'], case_sensitive=False), default="GET", show_default=True, help="HTTP method")
+@click.option("-H", "--header", "headers", multiple=True, metavar="'Name: value'", help="custom request header (repeatable)")
+@click.option("-q", "--query", "query_params", multiple=True, metavar="key=value", help="query parameter (repeatable)")
+@click.option("-d", "--body", default=None, help="text request body; cannot be used with --json-body")
+@click.option("--json-body", "json_body_text", default=None, metavar="JSON", help="JSON request body; cannot be used with --body")
+@click.option("--return-format", type=click.Choice(['raw', 'basic_clean', 'strict_clean', 'markdown']), default="markdown", help="return content format")
 @click.option("--timeout", type=float, default=30.0, show_default=True, help="request timeout in seconds")
 def fetch(
     context: click.Context,
     url: str,
-    return_content: Literal['raw'] | Literal['basic_clean'] | Literal['strict_clean'] | Literal['markdown'],
+    method: str,
+    headers: tuple[str, ...],
+    query_params: tuple[str, ...],
+    body: Optional[str],
+    json_body_text: Optional[str],
+    return_format: Literal['raw'] | Literal['basic_clean'] | Literal['strict_clean'] | Literal['markdown'],
     timeout: float,
 ):
+    if body is not None and json_body_text is not None:
+        raise click.UsageError("--body and --json-body cannot be used together")
+
     ua = None
+    ua_force = False
     if context.obj:
         ua = context.obj.get("ua")
+        ua_force = bool(context.obj.get("force_user_agent"))
     if not ua:
         ua = get_user_agent()
 
+    merged_headers: dict[str, str] = {}
+    for item in headers:
+        name, value = _parse_header(item)
+        merged_headers[name] = value
+    merged_headers = merge_user_agent(merged_headers, ua, ua_force)
+
+    query = None
+    if query_params:
+        query = {}
+        for item in query_params:
+            key, value = _parse_query(item)
+            query[key] = value
+
+    json_body_data = None
+    if json_body_text is not None:
+        try:
+            json_body_data = json.loads(json_body_text)
+        except json.JSONDecodeError as e:
+            raise click.BadParameter(f"invalid JSON: {e}") from e
+
     try:
         response = http_request(
-            "GET", url,
-            query=None,
-            headers={"User-Agent": ua},
-            data=None,
-            json_=None,
+            method, url,
+            query=query,
+            headers=merged_headers,
+            body=body,
+            json_body=json_body_data,
             timeout=timeout,
         )
         res = format_response_result(
@@ -115,7 +165,7 @@ def fetch(
             format_status=True,
             format_headers=False,
             format_content=True,
-            return_content=return_content,
+            return_format=return_format,
         )
     except RequestError as e:
         res = f"Error: {e.message}"

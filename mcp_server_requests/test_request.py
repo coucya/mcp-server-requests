@@ -167,7 +167,7 @@ class TestHttpRequest(unittest.TestCase):
         mock_urlopen.return_value = mock_response
 
         json_data = {"name": "test", "value": 123}
-        result = http_request("POST", self.base_url, json_=json_data)
+        result = http_request("POST", self.base_url, json_body=json_data)
 
         self.assertEqual(result.status_code, 201)
 
@@ -189,7 +189,7 @@ class TestHttpRequest(unittest.TestCase):
         mock_urlopen.return_value = mock_response
 
         data = "test string data"
-        result = http_request("POST", self.base_url, data=data)
+        result = http_request("POST", self.base_url, body=data)
 
         # Verify result and request parameters
         self.assertEqual(result.status_code, 200)
@@ -210,7 +210,7 @@ class TestHttpRequest(unittest.TestCase):
         mock_urlopen.return_value = mock_response
 
         data = b"binary data"
-        result = http_request("POST", self.base_url, data=data)
+        result = http_request("POST", self.base_url, body=data)
 
         # Verify result and request parameters
         self.assertEqual(result.status_code, 200)
@@ -302,19 +302,19 @@ class TestHttpRequest(unittest.TestCase):
             http_request("GET", 123)  # type: ignore
         self.assertIn("URL must be a string", str(cm.exception))
 
-    def test_both_data_and_json(self):
-        """Test providing both data and json parameters"""
+    def test_both_body_and_json_body(self):
+        """Test providing both body and json_body parameters"""
         with self.assertRaises(ArgumentError) as cm:
-            http_request("POST", self.base_url, data="test", json_={"key": "value"})
-        self.assertIn("Both data and json cannot be provided", str(cm.exception))
+            http_request("POST", self.base_url, body="test", json_body={"key": "value"})
+        self.assertIn("Both body and json_body cannot be provided", str(cm.exception))
 
-    def test_invalid_data_type(self):
-        """Test invalid data type"""
+    def test_invalid_body_type(self):
+        """Test invalid body type"""
         # Use type annotation to bypass type checking and test runtime behavior
         invalid_data = {"invalid": "dict"}  # type: ignore
         with self.assertRaises(ArgumentError) as cm:
-            http_request("POST", self.base_url, data=invalid_data)  # type: ignore
-        self.assertIn("Data must be a string, bytes, or bytearray", str(cm.exception))
+            http_request("POST", self.base_url, body=invalid_data)  # type: ignore
+        self.assertIn("Body must be a string, bytes, or bytearray", str(cm.exception))
 
     def test_invalid_json_serialization(self):
         """Test invalid JSON serialization"""
@@ -323,8 +323,8 @@ class TestHttpRequest(unittest.TestCase):
             pass
 
         with self.assertRaises(ArgumentError) as cm:
-            http_request("POST", self.base_url, json_={"obj": UnserializableObject()})
-        self.assertIn("Failed to serialize JSON data", str(cm.exception))
+            http_request("POST", self.base_url, json_body={"obj": UnserializableObject()})
+        self.assertIn("Failed to serialize JSON body", str(cm.exception))
 
     @patch('mcp_server_requests.request.urllib.request.urlopen')
     def test_http_error_handling(self, mock_urlopen):

@@ -83,8 +83,8 @@ def http_request(
     url: str,
     *,
     query: Optional[dict] = None,
-    data: Optional[Union[str, bytes, bytearray]] = None,
-    json_: Optional[dict] = None,
+    body: Optional[Union[str, bytes, bytearray]] = None,
+    json_body: Optional[dict] = None,
     headers: Optional[dict] = None,
     timeout: float | None = 30.0,
 ) -> Response:
@@ -104,8 +104,8 @@ def http_request(
     if not isinstance(url, str):
         raise ArgumentError("URL must be a string")
 
-    if data is not None and json_ is not None:
-        raise ArgumentError("Both data and json cannot be provided at the same time")
+    if body is not None and json_body is not None:
+        raise ArgumentError("Both body and json_body cannot be provided at the same time")
 
     try:
         if query is not None:
@@ -115,28 +115,28 @@ def http_request(
     except Exception as e:
         raise ArgumentError("Failed to splicing URL and query") from e
 
-    data_bytes = None
-    if data is not None:
-        if not isinstance(data, (str, bytes, bytearray)):
-            raise ArgumentError("Data must be a string, bytes, or bytearray")
-        elif isinstance(data, str):
-            data_bytes = data.encode(encoding="utf-8")
-        elif isinstance(data, bytearray):
-            data_bytes = bytes(data)
+    body_bytes = None
+    if body is not None:
+        if not isinstance(body, (str, bytes, bytearray)):
+            raise ArgumentError("Body must be a string, bytes, or bytearray")
+        elif isinstance(body, str):
+            body_bytes = body.encode(encoding="utf-8")
+        elif isinstance(body, bytearray):
+            body_bytes = bytes(body)
         else:
-            data_bytes = data
-    elif json_ is not None:
+            body_bytes = body
+    elif json_body is not None:
         try:
-            data_bytes = json.dumps(json_).encode(encoding="utf-8")
+            body_bytes = json.dumps(json_body).encode(encoding="utf-8")
         except Exception as e:
-            raise ArgumentError("Failed to serialize JSON data") from e
+            raise ArgumentError("Failed to serialize JSON body") from e
 
     if not url.startswith("http://") and not url.startswith("https://"):
         url = "https://" + url
 
     try:
         url = quote(url, safe=";/?:@&=+$,", encoding="utf-8")
-        request = urllib.request.Request(url, method=method, headers=headers, data=data_bytes)
+        request = urllib.request.Request(url, method=method, headers=headers, data=body_bytes)
         response: http.client.HTTPResponse = urllib.request.urlopen(request, timeout=timeout)
 
         version = VERSION_MAP.get(response.version, "HTTP/1.1")

@@ -294,12 +294,12 @@ class TestCreateMcpServer(unittest.TestCase):
     """Test fetch_to_file registration behavior"""
 
     @async_test
-    async def test_fetch_to_file_not_registered_by_default(self):
+    async def test_default_tool_set(self):
         mcp = create_mcp_server(ua="Test-Agent")
         names = await _tool_names(mcp)
-        self.assertNotIn("fetch_to_file", names)
         self.assertIn("fetch", names)
-        self.assertIn("http_request", names)
+        self.assertNotIn("http_request", names)
+        self.assertNotIn("fetch_to_file", names)
 
     @async_test
     async def test_fetch_to_file_registered_when_enabled(self):
@@ -347,6 +347,142 @@ class TestCreateMcpServer(unittest.TestCase):
             shutil.rmtree(workspace, ignore_errors=True)
 
 
+class TestFetchTool(unittest.TestCase):
+    """Test the merged fetch tool"""
+
+    def _make_server(self, *, ua_force: bool | None = None):
+        return create_mcp_server(ua="Test-Agent", ua_force=ua_force)
+
+    @staticmethod
+    def _response(content=b"<p>hello</p>", content_type="text/html"):
+        return Response(
+            "https://example.com", "HTTP/1.1", 200, "OK",
+            [("Content-Type", content_type)],
+            content,
+        )
+
+    @async_test
+    async def test_default_get_with_server_user_agent(self):
+        mcp = self._make_server()
+        tool = await _get_tool(mcp, "fetch")
+        with mock.patch(
+            "mcp_server_requests.server.http_request",
+            return_value=self._response(),
+        ) as mocked:
+            result = tool.fn(url="https://example.com")
+
+        mocked.assert_called_once_with(
+            "GET", "https://example.com",
+            query=None,
+            headers={"User-Agent": "Test-Agent"},
+            body=None,
+            json_body=None,
+            timeout=30.0,
+        )
+        self.assertIn("HTTP/1.1 200 OK", result)
+        self.assertIn("hello", result)
+
+    @async_test
+    async def test_method_query_body_forwarded(self):
+        mcp = self._make_server()
+        tool = await _get_tool(mcp, "fetch")
+        with mock.patch(
+            "mcp_server_requests.server.http_request",
+            return_value=self._response("ok", "text/plain"),
+        ) as mocked:
+            tool.fn(
+                url="https://example.com/log",
+                method="PATCH",
+                query={"q": "test", "limit": 10},
+                body="payload",
+                timeout=5.0,
+            )
+
+        mocked.assert_called_once_with(
+            "PATCH", "https://example.com/log",
+            query={"q": "test", "limit": 10},
+            headers={"User-Agent": "Test-Agent"},
+            body="payload",
+            json_body=None,
+            timeout=5.0,
+        )
+
+    @async_test
+    async def test_post_json_forwarded(self):
+        mcp = self._make_server()
+        tool = await _get_tool(mcp, "fetch")
+        with mock.patch(
+            "mcp_server_requests.server.http_request",
+            return_value=self._response(b'{"ok": true}', "application/json"),
+        ) as mocked:
+            result = tool.fn(
+                url="https://api.example.com/users",
+                method="POST",
+                json_body={"name": "John"},
+                timeout=None,
+            )
+
+        mocked.assert_called_once_with(
+            "POST", "https://api.example.com/users",
+            query=None,
+            headers={"User-Agent": "Test-Agent"},
+            body=None,
+            json_body={"name": "John"},
+            timeout=None,
+        )
+        self.assertIn('{"ok": true}', result)
+
+    @async_test
+    async def test_caller_user_agent_kept_when_not_forced(self):
+        mcp = self._make_server()
+        tool = await _get_tool(mcp, "fetch")
+        with mock.patch(
+            "mcp_server_requests.server.http_request",
+            return_value=self._response(),
+        ) as mocked:
+            tool.fn(
+                url="https://example.com",
+                headers={"user-agent": "Caller-Agent"},
+            )
+
+        headers = mocked.call_args.kwargs["headers"]
+        self.assertEqual(headers, {"user-agent": "Caller-Agent"})
+
+    @async_test
+    async def test_forced_user_agent_replaces_case_variants(self):
+        mcp = self._make_server(ua_force=True)
+        tool = await _get_tool(mcp, "fetch")
+        with mock.patch(
+            "mcp_server_requests.server.http_request",
+            return_value=self._response(),
+        ) as mocked:
+            tool.fn(
+                url="https://example.com",
+                headers={"user-agent": "Caller-Agent", "User-Agent": "Other-Agent"},
+            )
+
+        headers = mocked.call_args.kwargs["headers"]
+        self.assertEqual(headers, {"User-Agent": "Test-Agent"})
+
+    @async_test
+    async def test_empty_url(self):
+        mcp = self._make_server()
+        tool = await _get_tool(mcp, "fetch")
+        result = tool.fn(url="")
+        self.assertIn("url must not be empty", result)
+
+    @async_test
+    async def test_request_error_returns_text(self):
+        mcp = self._make_server()
+        tool = await _get_tool(mcp, "fetch")
+        with mock.patch(
+            "mcp_server_requests.server.http_request",
+            side_effect=RequestError("connection failed"),
+        ):
+            result = tool.fn(url="https://example.com")
+        self.assertIn("connection failed", result)
+
+
 class TestFetchToFileTool(unittest.TestCase):
     def setUp(self):
         self.workspace = _make_temp_dir()
@@ -354,9 +490,10 @@ class TestFetchToFileTool(unittest.TestCase):
     def tearDown(self):
         shutil.rmtree(self.workspace, ignore_errors=True)
 
-    def _make_server(self):
+    def _make_server(self, *, ua_force: bool | None = None):
         return create_mcp_server(
             ua="Test-Agent",
+            ua_force=ua_force,
             enable_fetch_to_file=True,
             workspace=self.workspace,
         )
@@ -373,7 +510,7 @@ class TestFetchToFileTool(unittest.TestCase):
             result = tool.fn(
                 url="https://example.com",
                 file_path="out.txt",
-                return_content="raw",
+                return_format="raw",
                 timeout=30.0,
             )
         self.assertIn("internal error", result)
@@ -393,7 +530,7 @@ class TestFetchToFileTool(unittest.TestCase):
             result = tool.fn(
                 url="https://example.com",
                 file_path="out.bin",
-                return_content="raw",
+                return_format="raw",
                 timeout=30.0,
             )
         self.assertIn("cannot be converted", result)
@@ -409,7 +546,7 @@ class TestFetchToFileTool(unittest.TestCase):
         result = tool.fn(
             url="https://example.com",
             file_path="out.txt",
-            return_content="raw",
+            return_format="raw",
             timeout=30.0,
         )
         self.assertIn("already exists", result)
@@ -430,12 +567,137 @@ class TestFetchToFileTool(unittest.TestCase):
             result = tool.fn(
                 url="https://example.com",
                 file_path="out.txt",
-                return_content="raw",
+                return_format="raw",
                 timeout=30.0,
             )
         self.assertIn("successfully written", result)
         with open(target, "r", encoding="utf-8") as f:
             self.assertEqual(f.read(), "hello")
+
+    @async_test
+    async def test_post_json_request_forwarded_and_written(self):
+        mcp = self._make_server()
+        tool = await _get_tool(mcp, "fetch_to_file")
+        target = os.path.join(self.workspace, "out.json")
+        response = Response(
+            "https://api.example.com/users", "HTTP/1.1", 201, "Created",
+            [("Content-Type", "application/json")],
+            b'{"id": 1}',
+        )
+        with mock.patch(
+            "mcp_server_requests.server.http_request",
+            return_value=response,
+        ) as mocked:
+            result = tool.fn(
+                url="https://api.example.com/users",
+                file_path="out.json",
+                method="POST",
+                query={"q": "test"},
+                json_body={"name": "John"},
+                timeout=5.0,
+            )
+
+        mocked.assert_called_once_with(
+            "POST", "https://api.example.com/users",
+            query={"q": "test"},
+            headers={"User-Agent": "Test-Agent"},
+            body=None,
+            json_body={"name": "John"},
+            timeout=5.0,
+        )
+        self.assertIn("successfully written", result)
+        with open(target, "r", encoding="utf-8") as f:
+            self.assertEqual(f.read(), '{"id": 1}')
+
+    @async_test
+    async def test_body_request_forwarded_and_written(self):
+        mcp = self._make_server()
+        tool = await _get_tool(mcp, "fetch_to_file")
+        target = os.path.join(self.workspace, "out.txt")
+        response = Response(
+            "https://example.com/log", "HTTP/1.1", 200, "OK",
+            [("Content-Type", "text/plain")],
+            b"accepted",
+        )
+        with mock.patch(
+            "mcp_server_requests.server.http_request",
+            return_value=response,
+        ) as mocked:
+            result = tool.fn(
+                url="https://example.com/log",
+                file_path="out.txt",
+                method="PUT",
+                body="raw payload",
+            )
+
+        mocked.assert_called_once_with(
+            "PUT", "https://example.com/log",
+            query=None,
+            headers={"User-Agent": "Test-Agent"},
+            body="raw payload",
+            json_body=None,
+            timeout=30.0,
+        )
+        self.assertIn("successfully written", result)
+        with open(target, "r", encoding="utf-8") as f:
+            self.assertEqual(f.read(), "accepted")
+
+    @async_test
+    async def test_caller_user_agent_kept_when_not_forced(self):
+        mcp = self._make_server()
+        tool = await _get_tool(mcp, "fetch_to_file")
+        response = Response(
+            "https://example.com", "HTTP/1.1", 200, "OK",
+            [("Content-Type", "text/plain")],
+            b"ok",
+        )
+        with mock.patch(
+            "mcp_server_requests.server.http_request",
+            return_value=response,
+        ) as mocked:
+            tool.fn(
+                url="https://example.com",
+                file_path="out.txt",
+                headers={"user-agent": "Caller-Agent"},
+            )
+
+        headers = mocked.call_args.kwargs["headers"]
+        self.assertEqual(headers, {"user-agent": "Caller-Agent"})
+
+    @async_test
+    async def test_forced_user_agent_replaces_case_variants(self):
+        mcp = self._make_server(ua_force=True)
+        tool = await _get_tool(mcp, "fetch_to_file")
+        response = Response(
+            "https://example.com", "HTTP/1.1", 200, "OK",
+            [("Content-Type", "text/plain")],
+            b"ok",
+        )
+        with mock.patch(
+            "mcp_server_requests.server.http_request",
+            return_value=response,
+        ) as mocked:
+            tool.fn(
+                url="https://example.com",
+                file_path="out.txt",
+                headers={"user-agent": "Caller-Agent", "User-Agent": "Other-Agent"},
+            )
+
+        headers = mocked.call_args.kwargs["headers"]
+        self.assertEqual(headers, {"User-Agent": "Test-Agent"})
+
+    @async_test
+    async def test_invalid_path_does_not_request(self):
+        mcp = self._make_server()
+        tool = await _get_tool(mcp, "fetch_to_file")
+        with mock.patch("mcp_server_requests.server.http_request") as mocked:
+            result = tool.fn(
+                url="https://example.com",
+                file_path="../escape.txt",
+            )
+
+        self.assertIn("Error:", result)
+        mocked.assert_not_called()
 
 
 class TestFormatResponseResult(unittest.TestCase):
@@ -448,7 +710,7 @@ class TestFormatResponseResult(unittest.TestCase):
         result = format_response_result(
             response,
             format_content=True,
-            return_content="markdown",
+            return_format="markdown",
         )
         self.assertIn("hello", result)
 
