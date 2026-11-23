@@ -196,18 +196,17 @@ def format_response_result(
     else:
         content = ""
 
-    strs = []
+    parts = []
 
     if format_status:
-        strs.append(f"{http_version} {status} {reason}\r\n")
+        parts.append(f"{http_version} {status} {reason}".rstrip())
     if format_headers:
-        response_header_str = "\r\n".join(f"{k}: {v}" for k, v in headers)
-        strs.append(response_header_str)
-    if len(strs) > 0:
-        strs.append("\r\n\r\n")
-    strs.append(content)
+        parts.append("\r\n".join(f"{k}: {v}" for k, v in headers))
 
-    return "\r\n".join(strs)
+    if not parts:
+        return content
+
+    return "\r\n".join(parts) + "\r\n\r\n" + content
 
 
 def resolve_write_path(

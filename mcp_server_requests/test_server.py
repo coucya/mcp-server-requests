@@ -714,6 +714,65 @@ class TestFormatResponseResult(unittest.TestCase):
         )
         self.assertIn("hello", result)
 
+    def test_format_status_headers_and_content(self):
+        response = Response(
+            "http://example.com", "HTTP/1.1", 200, "OK",
+            [("Content-Type", "text/plain"), ("X-Test", "1")],
+            b"hello",
+        )
+        result = format_response_result(
+            response,
+            format_status=True,
+            format_headers=True,
+            format_content=True,
+        )
+        self.assertEqual(
+            result,
+            "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nX-Test: 1\r\n\r\nhello",
+        )
+
+    def test_format_status_without_headers(self):
+        response = Response(
+            "http://example.com", "HTTP/1.1", 200, "OK",
+            [("Content-Type", "text/plain")],
+            b"hello",
+        )
+        result = format_response_result(
+            response,
+            format_status=True,
+            format_headers=False,
+            format_content=True,
+        )
+        self.assertEqual(result, "HTTP/1.1 200 OK\r\n\r\nhello")
+
+    def test_format_headers_without_status(self):
+        response = Response(
+            "http://example.com", "HTTP/1.1", 200, "OK",
+            [("Content-Type", "text/plain")],
+            b"hello",
+        )
+        result = format_response_result(
+            response,
+            format_status=False,
+            format_headers=True,
+            format_content=True,
+        )
+        self.assertEqual(result, "Content-Type: text/plain\r\n\r\nhello")
+
+    def test_format_content_only(self):
+        response = Response(
+            "http://example.com", "HTTP/1.1", 200, "OK",
+            [("Content-Type", "text/plain")],
+            b"hello",
+        )
+        result = format_response_result(
+            response,
+            format_status=False,
+            format_headers=False,
+            format_content=True,
+        )
+        self.assertEqual(result, "hello")
+
     def test_format_non_text_raises(self):
         response = Response(
             "http://example.com", "HTTP/1.1", 200, "OK",
